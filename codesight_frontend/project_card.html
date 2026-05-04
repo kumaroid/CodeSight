@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeSight — Карточка проекта</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --surface: #fcfbf8;
+      --surface-2: #f2eee8;
+      --border: #d9d3c8;
+      --text: #24221e;
+      --muted: #726e65;
+      --faint: #9f998f;
+      --primary: #0b6b6f;
+      --accent: rgba(11,107,111,0.08);
+      --success-bg: rgba(69,122,44,0.10);
+      --success-text: #44752b;
+      --warn-bg: rgba(191,128,29,0.12);
+      --warn-text: #8f5b00;
+      --danger-bg: rgba(161,53,68,0.12);
+      --danger-text: #8d2e3a;
+      --shadow: 0 16px 40px rgba(34, 33, 29, 0.08);
+      --shadow-soft: 0 10px 24px rgba(34, 33, 29, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(11,107,111,0.05), transparent 22%),
+        var(--bg);
+    }
+
+    .layout {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 248px 1fr;
+    }
+
+    .sidebar {
+      padding: 24px 16px;
+      border-right: 1px solid rgba(36,34,30,0.08);
+      background: rgba(252,251,248,0.82);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 12px 24px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      background: linear-gradient(135deg, #0b6b6f, #094d55);
+      letter-spacing: -0.04em;
+    }
+
+    .brand-name {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .nav-item.active {
+      background: var(--accent);
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .nav-icon { width: 18px; text-align: center; }
+
+    .content {
+      padding: 28px;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .hero-card {
+      background: var(--surface);
+      border: 1px solid rgba(36,34,30,0.08);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .project-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 16px;
+      background: rgba(11,107,111,0.10);
+      color: var(--primary);
+      font-weight: 800;
+      font-size: 20px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--faint);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 38px;
+      line-height: 1.04;
+      letter-spacing: -0.05em;
+    }
+
+    .description {
+      margin: 12px auto 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 66ch;
+    }
+
+    .tag-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .tag {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid rgba(36,34,30,0.06);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid rgba(36,34,30,0.08);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid rgba(36,34,30,0.08);
+      border-radius: 20px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-soft);
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 30px;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      margin-bottom: 8px;
+    }
+
+    .stat-note {
+      font-size: 13px;
+      color: var(--faint);
+    }
+
+    .table-card {
+      background: var(--surface);
+      border: 1px solid rgba(36,34,30,0.08);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .table-header {
+      padding: 20px 22px;
+      border-bottom: 1px solid rgba(36,34,30,0.08);
+      text-align: center;
+    }
+
+    .table-header h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      letter-spacing: -0.04em;
+    }
+
+    .table-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 14px 20px;
+      background: rgba(242,238,232,0.58);
+      color: var(--faint);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    tbody td {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(36,34,30,0.06);
+      font-size: 14px;
+      vertical-align: middle;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill-success { background: var(--success-bg); color: var(--success-text); }
+    .pill-warn { background: var(--warn-bg); color: var(--warn-text); }
+    .pill-danger { background: var(--danger-bg); color: var(--danger-text); }
+
+    .link {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .info-card {
+      background: var(--surface);
+      border: 1px solid rgba(36,34,30,0.08);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      text-align: center;
+    }
+
+    .info-card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: -0.03em;
+    }
+
+    .info-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .chip-stack {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .chip-box {
+      padding: 13px 14px;
+      border-radius: 16px;
+      background: var(--surface-2);
+      border: 1px solid rgba(36,34,30,0.05);
+    }
+
+    .chip-box strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      color: var(--faint);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .chip-box span {
+      display: block;
+      font-size: 14px;
+    }
+
+    @media (max-width: 1220px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .bottom-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .content { padding: 20px; }
+    }
+
+    @media (max-width: 760px) {
+      .stats { grid-template-columns: 1fr; }
+      .table-card { overflow-x: auto; }
+      table { min-width: 760px; }
+      h1 { font-size: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CS</div>
+        <div>
+          <div class="brand-name">CodeSight</div>
+          <div class="brand-sub">Workspace</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-item active"><span class="nav-icon">◫</span><span>Проекты</span></div>
+        <div class="nav-item"><span class="nav-icon">◎</span><span>Запуски анализа</span></div>
+        <div class="nav-item"><span class="nav-icon">▣</span><span>Отчеты</span></div>
+        <div class="nav-item"><span class="nav-icon">⚙</span><span>Настройки</span></div>
+      </nav>
+    </aside>
+
+    <section class="content">
+      <div class="container">
+        <section class="hero-card">
+          <div class="project-icon">API</div>
+          <div class="eyebrow">Карточка проекта</div>
+          <h1>backend-api</h1>
+          <p class="description">Внутренний сервис обработки API-запросов. Проект подключен к рабочему пространству и готов к запуску полного анализа качества кода.</p>
+
+          <div class="tag-row">
+            <div class="tag">Python 3.12</div>
+            <div class="tag">main branch</div>
+            <div class="tag">48 modules</div>
+            <div class="tag">FastAPI service</div>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-secondary">Редактировать</button>
+            <button class="btn btn-primary">Запустить анализ</button>
+          </div>
+        </section>
+
+        <section class="stats">
+          <article class="stat-card">
+            <div class="stat-label">Последний quality score</div>
+            <div class="stat-value">87</div>
+            <div class="stat-note">+6 пунктов к прошлому запуску</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-label">Критические проблемы</div>
+            <div class="stat-value">3</div>
+            <div class="stat-note">Требуют приоритетной проверки</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-label">Покрытие тестами</div>
+            <div class="stat-value">78%</div>
+            <div class="stat-note">По последнему запуску тестов</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-label">Состояние проекта</div>
+            <div class="stat-value">Ready</div>
+            <div class="stat-note">Можно запускать новый анализ</div>
+          </article>
+        </section>
+
+        <section class="table-card">
+          <div class="table-header">
+            <h2>История запусков</h2>
+            <p>Центральный рабочий блок карточки проекта. Позволяет перейти к последним результатам анализа и детальным отчетам.</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Запуск</th>
+                <th>Дата</th>
+                <th>Тип анализа</th>
+                <th>Результат</th>
+                <th>Статус</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>#1842</td>
+                <td>30.04.2026 · 11:42</td>
+                <td>Полный анализ</td>
+                <td>87 score · 12 findings</td>
+                <td><span class="pill pill-success">Готово</span></td>
+                <td><span class="link">Открыть отчет</span></td>
+              </tr>
+              <tr>
+                <td>#1831</td>
+                <td>29.04.2026 · 17:16</td>
+                <td>Static + tests</td>
+                <td>81 score · 18 findings</td>
+                <td><span class="pill pill-success">Готово</span></td>
+                <td><span class="link">Открыть отчет</span></td>
+              </tr>
+              <tr>
+                <td>#1806</td>
+                <td>28.04.2026 · 12:03</td>
+                <td>Security scan</td>
+                <td>4 issues detected</td>
+                <td><span class="pill pill-warn">Проверка</span></td>
+                <td><span class="link">Подробнее</span></td>
+              </tr>
+              <tr>
+                <td>#1788</td>
+                <td>26.04.2026 · 21:48</td>
+                <td>Полный анализ</td>
+                <td>75 score · 27 findings</td>
+                <td><span class="pill pill-success">Готово</span></td>
+                <td><span class="link">Открыть отчет</span></td>
+              </tr>
+              <tr>
+                <td>#1764</td>
+                <td>25.04.2026 · 14:25</td>
+                <td>Architecture scan</td>
+                <td>3 dependency cycles</td>
+                <td><span class="pill pill-danger">Внимание</span></td>
+                <td><span class="link">Подробнее</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="bottom-grid">
+          <article class="info-card">
+            <h3>Конфигурация проекта</h3>
+            <p>Основные параметры, которые используются системой при каждом запуске анализа.</p>
+            <div class="chip-stack">
+              <div class="chip-box">
+                <strong>Репозиторий</strong>
+                <span>git.example.local/team/backend-api</span>
+              </div>
+              <div class="chip-box">
+                <strong>Основная ветка</strong>
+                <span>main</span>
+              </div>
+              <div class="chip-box">
+                <strong>Каталог проекта</strong>
+                <span>/src</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="info-card">
+            <h3>Ключевые замечания</h3>
+            <p>Краткий обзор последних проблем, требующих внимания перед следующим запуском.</p>
+            <div class="chip-stack">
+              <div class="chip-box">
+                <strong>Сложность</strong>
+                <span>Высокая сложность в module/auth/service.py</span>
+              </div>
+              <div class="chip-box">
+                <strong>Архитектура</strong>
+                <span>Обнаружены 3 циклические зависимости между модулями</span>
+              </div>
+              <div class="chip-box">
+                <strong>Безопасность</strong>
+                <span>Одна зависимость отмечена как потенциально уязвимая</span>
+              </div>
+            </div>
+          </article>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

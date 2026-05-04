@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeSight — Статический анализ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --surface: #fcfbf8;
+      --surface-2: #f2eee8;
+      --surface-3: #ebe5dc;
+      --border: #d9d3c8;
+      --text: #24221e;
+      --muted: #726e65;
+      --faint: #9f998f;
+      --primary: #0b6b6f;
+      --accent: rgba(11,107,111,0.08);
+      --success-bg: rgba(69,122,44,0.10);
+      --success-text: #44752b;
+      --warning-bg: rgba(191,128,29,0.12);
+      --warning-text: #8f5b00;
+      --error-bg: rgba(161,53,68,0.12);
+      --error-text: #8d2e3a;
+      --shadow: 0 16px 40px rgba(34,33,29,0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body { font-family: 'Inter', sans-serif; color: var(--text); background: radial-gradient(circle at top left, rgba(11,107,111,0.05), transparent 22%), var(--bg); }
+    .layout { min-height: 100vh; display: grid; grid-template-columns: 248px 1fr; }
+    .sidebar { padding: 24px 16px; border-right: 1px solid rgba(36,34,30,0.08); background: rgba(252,251,248,0.82); backdrop-filter: blur(10px); }
+    .brand { display: flex; align-items: center; gap: 14px; padding: 10px 12px 24px; }
+    .brand-mark { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; color: #fff; font-weight: 800; background: linear-gradient(135deg, #0b6b6f, #094d55); letter-spacing: -0.04em; }
+    .brand-name { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
+    .brand-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .nav { display: grid; gap: 6px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; color: var(--muted); font-size: 15px; font-weight: 500; }
+    .nav-item.active { background: var(--accent); color: var(--primary); font-weight: 700; }
+    .nav-icon { width: 18px; text-align: center; }
+    .content { padding: 22px; }
+    .container { max-width: 1520px; margin: 0 auto; display: grid; gap: 16px; }
+    .hero, .card { background: var(--surface); border: 1px solid rgba(36,34,30,0.08); box-shadow: var(--shadow); }
+    .hero { border-radius: 28px; padding: 22px 24px; display: grid; grid-template-columns: minmax(0, 1.15fr) 360px; gap: 18px; align-items: center; }
+    .eyebrow { margin: 0 0 8px; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
+    h1 { margin: 0; font-size: 34px; line-height: 1.05; letter-spacing: -0.05em; }
+    .description { margin: 10px 0 0; color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 66ch; }
+    .hero-side { display: grid; gap: 10px; }
+    .meta-box { padding: 14px 16px; border-radius: 18px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.06); text-align: center; }
+    .meta-box strong { display: block; font-size: 13px; margin-bottom: 4px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+    .meta-box span { display: block; font-size: 15px; }
+    .card { border-radius: 26px; padding: 20px; }
+    .card h2, .card h3 { margin: 0; font-size: 22px; letter-spacing: -0.04em; }
+    .card p { margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .pill { display: inline-flex; align-items: center; justify-content: center; padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .pill-primary { background: rgba(11,107,111,0.10); color: var(--primary); }
+    .pill-success { background: var(--success-bg); color: var(--success-text); }
+    .pill-warning { background: var(--warning-bg); color: var(--warning-text); }
+    .pill-error { background: var(--error-bg); color: var(--error-text); }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+    .summary { padding: 16px; border-radius: 18px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.06); }
+    .summary strong { display: block; font-size: 13px; color: var(--faint); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .summary .value { display: block; font-size: 28px; letter-spacing: -0.05em; margin-bottom: 6px; }
+    .summary .meta { font-size: 13px; color: var(--muted); }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.4fr) 380px; gap: 16px; align-items: start; }
+    .filters { display: grid; gap: 14px; }
+    .filter-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .filter {
+      padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.06); display: grid; gap: 6px;
+    }
+    .filter label { font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+    .filter span { font-size: 14px; color: var(--text); }
+    .active-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .table-toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+    .searchbox, .toolbar-btn {
+      padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(36,34,30,0.08); background: #fff; color: var(--muted); font-size: 14px;
+    }
+    .toolbar-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .findings { display: grid; gap: 10px; margin-top: 14px; }
+    .finding.header { background: transparent; border: none; padding: 0 4px; font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+    .finding {
+      display: grid; grid-template-columns: 0.9fr 1.35fr 0.7fr 0.55fr 1.1fr; gap: 12px; align-items: center;
+      padding: 14px 16px; border-radius: 16px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.05);
+      font-size: 14px;
+    }
+    .finding .path { color: var(--muted); }
+    .finding .issue-title { font-weight: 600; display: block; margin-bottom: 4px; }
+    .finding .issue-sub { font-size: 12px; color: var(--muted); }
+    .severity-high { color: var(--error-text); }
+    .severity-medium { color: var(--warning-text); }
+    .severity-low { color: var(--success-text); }
+    .side-stack { display: grid; gap: 16px; }
+    .code-block {
+      margin-top: 16px; padding: 16px; border-radius: 18px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.06);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.7; color: var(--text); white-space: pre-wrap;
+    }
+    .line-bad { background: rgba(161,53,68,0.08); display: block; margin: 0 -10px; padding: 0 10px; border-left: 3px solid rgba(161,53,68,0.45); }
+    .hint-list { display: grid; gap: 10px; margin-top: 16px; }
+    .hint {
+      padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.05); font-size: 14px; color: var(--muted); line-height: 1.55;
+    }
+    @media (max-width: 1320px) {
+      .hero, .workspace { grid-template-columns: 1fr; }
+      .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .content { padding: 18px; }
+    }
+    @media (max-width: 760px) {
+      h1 { font-size: 30px; }
+      .filter-grid, .summary-grid { grid-template-columns: 1fr; }
+      .finding { grid-template-columns: 1fr; gap: 6px; }
+      .finding.header { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CS</div>
+        <div>
+          <div class="brand-name">CodeSight</div>
+          <div class="brand-sub">Workspace</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-item"><span class="nav-icon">◫</span><span>Проекты</span></div>
+        <div class="nav-item"><span class="nav-icon">▣</span><span>Отчеты</span></div>
+        <div class="nav-item active"><span class="nav-icon">◎</span><span>Статический анализ</span></div>
+        <div class="nav-item"><span class="nav-icon">⚙</span><span>Настройки</span></div>
+      </nav>
+    </aside>
+    <section class="content">
+      <div class="container">
+        <section class="hero">
+          <div>
+            <div class="eyebrow">Детализация анализа</div>
+            <h1>Статический анализ и список нарушений</h1>
+            <p class="description">Экран ориентирован на работу с большим числом замечаний, поэтому в верхней части размещены фильтры и summary-метрики, а ниже — таблица находок и панель просмотра выбранного фрагмента кода, что соответствует хорошим практикам работы с data tables и контекстными фильтрами [web:235][web:245][web:242].</p>
+          </div>
+          <div class="hero-side">
+            <div class="meta-box"><strong>Ruleset</strong><span>core-python-v2</span></div>
+            <div class="meta-box"><strong>Всего находок</strong><span>12 findings · 3 high</span></div>
+          </div>
+        </section>
+        <section class="card">
+          <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+              <h2>Сводка по результатам</h2>
+              <p>Для списков замечаний полезно показывать краткие агрегаты по severity и типам нарушений, чтобы пользователь мог сразу понять структуру проблем до применения фильтров [web:241][web:247].</p>
+            </div>
+            <span class="pill pill-primary">Filtered issue view</span>
+          </div>
+          <div class="summary-grid" style="margin-top:16px;">
+            <div class="summary"><strong>High severity</strong><span class="value">3</span><span class="meta">Критичные дефекты, требующие исправления до релиза.</span></div>
+            <div class="summary"><strong>Medium severity</strong><span class="value">4</span><span class="meta">Проблемы сопровождаемости и устойчивости кода.</span></div>
+            <div class="summary"><strong>Style issues</strong><span class="value">3</span><span class="meta">Нарушения соглашений и единообразия кода.</span></div>
+            <div class="summary"><strong>Complexity alerts</strong><span class="value">2</span><span class="meta">Функции с избыточной цикломатической сложностью.</span></div>
+          </div>
+        </section>
+        <section class="workspace">
+          <div class="filters">
+            <article class="card">
+              <h3>Фильтры и поиск</h3>
+              <p>Фильтры вынесены в отдельную верхнюю панель, а структура соответствует table UX: severity, модуль, правило, путь к файлу и свободный поиск по тексту замечания [web:237][web:239][web:245].</p>
+              <div class="filter-grid">
+                <div class="filter"><label>Severity</label><span>High, Medium</span></div>
+                <div class="filter"><label>Module</label><span>auth, users</span></div>
+                <div class="filter"><label>Rule type</label><span>Complexity</span></div>
+                <div class="filter"><label>File path</label><span>api/</span></div>
+                <div class="filter"><label>Sort</label><span>Severity desc</span></div>
+              </div>
+              <div class="active-filters">
+                <span class="pill pill-error">High</span>
+                <span class="pill pill-warning">Medium</span>
+                <span class="pill pill-primary">module: auth</span>
+                <span class="pill pill-primary">rule: complexity</span>
+              </div>
+              <div class="table-toolbar">
+                <div class="searchbox">Поиск по файлу, правилу или описанию</div>
+                <div class="toolbar-actions">
+                  <div class="toolbar-btn">Сбросить фильтры</div>
+                  <div class="toolbar-btn">Сохранить набор</div>
+                  <div class="toolbar-btn">Экспорт CSV</div>
+                </div>
+              </div>
+            </article>
+            <article class="card">
+              <h3>Таблица нарушений</h3>
+              <p>Таблица содержит ключевые поля: путь к файлу, правило, severity, строку и краткое описание, поскольку именно такая структура облегчает сортировку и переход к проблемному месту [web:241][web:242].</p>
+              <div class="findings">
+                <div class="finding header"><div>Файл</div><div>Нарушение</div><div>Severity</div><div>Строка</div><div>Правило</div></div>
+                <div class="finding">
+                  <div class="path">api/auth/service.py</div>
+                  <div><span class="issue-title">Высокая цикломатическая сложность</span><span class="issue-sub">Функция validate_session содержит чрезмерное количество ветвлений.</span></div>
+                  <div class="severity-high">High</div>
+                  <div>118</div>
+                  <div>complexity.max-branches</div>
+                </div>
+                <div class="finding">
+                  <div class="path">api/auth/service.py</div>
+                  <div><span class="issue-title">Глубокая вложенность условий</span><span class="issue-sub">Найдено более 4 уровней вложенных if/else-конструкций.</span></div>
+                  <div class="severity-medium">Medium</div>
+                  <div>131</div>
+                  <div>maintainability.nested-conditions</div>
+                </div>
+                <div class="finding">
+                  <div class="path">api/users/handlers.py</div>
+                  <div><span class="issue-title">Повторяющийся фрагмент кода</span><span class="issue-sub">Выявлен дублирующийся блок обработки исключений.</span></div>
+                  <div class="severity-medium">Medium</div>
+                  <div>87</div>
+                  <div>duplication.repeated-block</div>
+                </div>
+                <div class="finding">
+                  <div class="path">api/auth/service.py</div>
+                  <div><span class="issue-title">Слишком длинная функция</span><span class="issue-sub">Длина validate_session превышает целевое значение 50 строк.</span></div>
+                  <div class="severity-high">High</div>
+                  <div>102</div>
+                  <div>maintainability.function-length</div>
+                </div>
+                <div class="finding">
+                  <div class="path">core/config.py</div>
+                  <div><span class="issue-title">Неиспользуемый импорт</span><span class="issue-sub">Обнаружен импорт модуля logging без последующего использования.</span></div>
+                  <div class="severity-low">Low</div>
+                  <div>12</div>
+                  <div>style.unused-import</div>
+                </div>
+              </div>
+            </article>
+          </div>
+          <aside class="side-stack">
+            <article class="card">
+              <h3>Выбранная находка</h3>
+              <p>Правая панель фиксирует контекст выбранной записи и позволяет просматривать проблемный участок без ухода с таблицы, что повышает удобство анализа [web:235][web:248].</p>
+              <div class="active-filters" style="margin-top:16px;">
+                <span class="pill pill-error">High severity</span>
+                <span class="pill pill-primary">api/auth/service.py:118</span>
+              </div>
+              <div class="code-block">101  def validate_session(token, user, request):
+102      result = None
+103      if token is not None:
+104          if user is not None:
+105              if user.is_active:
+106                  if request.client is not None:
+107                      if request.client.ip in TRUSTED_IPS:
+108                          if token.expires_at > now():
+<span class="line-bad">109                              if token.scope == 'admin' and user.role != 'admin':</span>
+110                                  raise PermissionError('invalid role')
+111                              elif token.scope == 'user' and user.is_blocked:
+112                                  raise PermissionError('blocked user')
+113                              else:
+114                                  result = build_session(token, user)
+115      return result</div>
+            </article>
+            <article class="card">
+              <h3>Рекомендации по исправлению</h3>
+              <p>Для каждой находки полезно показывать короткие action-oriented подсказки, чтобы интерфейс был не только диагностическим, но и поддерживал последующее исправление кода [web:241][web:244].</p>
+              <div class="hint-list">
+                <div class="hint">Разбить функцию validate_session на несколько небольших проверок с ранним выходом из функции.</div>
+                <div class="hint">Вынести проверку ролей и срока действия токена в отдельные функции-предикаты.</div>
+                <div class="hint">Снизить вложенность за счет guard clauses и последовательной валидации входных условий.</div>
+              </div>
+            </article>
+          </aside>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

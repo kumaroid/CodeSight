@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeSight — Мониторинг выполнения анализа</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --surface: #fcfbf8;
+      --surface-2: #f2eee8;
+      --surface-3: #ebe5dc;
+      --border: #d9d3c8;
+      --text: #24221e;
+      --muted: #726e65;
+      --faint: #9f998f;
+      --primary: #0b6b6f;
+      --accent: rgba(11,107,111,0.08);
+      --success-bg: rgba(69,122,44,0.10);
+      --success-text: #44752b;
+      --warning-bg: rgba(191,128,29,0.12);
+      --warning-text: #8f5b00;
+      --error-bg: rgba(161,53,68,0.12);
+      --error-text: #8d2e3a;
+      --shadow: 0 16px 40px rgba(34,33,29,0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top left, rgba(11,107,111,0.05), transparent 22%), var(--bg);
+    }
+    .layout { min-height: 100vh; display: grid; grid-template-columns: 248px 1fr; }
+    .sidebar {
+      padding: 24px 16px;
+      border-right: 1px solid rgba(36,34,30,0.08);
+      background: rgba(252,251,248,0.82);
+      backdrop-filter: blur(10px);
+    }
+    .brand { display: flex; align-items: center; gap: 14px; padding: 10px 12px 24px; }
+    .brand-mark {
+      width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center;
+      color: #fff; font-weight: 800; background: linear-gradient(135deg, #0b6b6f, #094d55); letter-spacing: -0.04em;
+    }
+    .brand-name { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
+    .brand-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .nav { display: grid; gap: 6px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+      color: var(--muted); font-size: 15px; font-weight: 500;
+    }
+    .nav-item.active { background: var(--accent); color: var(--primary); font-weight: 700; }
+    .nav-icon { width: 18px; text-align: center; }
+    .content { padding: 22px; }
+    .container { max-width: 1480px; margin: 0 auto; display: grid; gap: 16px; }
+    .hero, .progress-card, .card, .log-card {
+      background: var(--surface); border: 1px solid rgba(36,34,30,0.08); box-shadow: var(--shadow);
+    }
+    .hero {
+      border-radius: 28px; padding: 22px 24px; display: grid; grid-template-columns: minmax(0, 1.25fr) 360px; gap: 18px; align-items: center;
+    }
+    .eyebrow { margin: 0 0 8px; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
+    h1 { margin: 0; font-size: 34px; line-height: 1.05; letter-spacing: -0.05em; }
+    .description { margin: 10px 0 0; color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 64ch; }
+    .hero-side { display: grid; gap: 10px; }
+    .meta-box {
+      padding: 14px 16px; border-radius: 18px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.06); text-align: center;
+    }
+    .meta-box strong {
+      display: block; font-size: 13px; margin-bottom: 4px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .meta-box span { display: block; font-size: 15px; }
+    .progress-card, .card { border-radius: 26px; padding: 20px; }
+    .progress-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .progress-head h2, .card h3, .log-top h3 { margin: 0; font-size: 22px; letter-spacing: -0.04em; }
+    .progress-head p, .card p, .log-top p { margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .pill {
+      display: inline-flex; align-items: center; justify-content: center; padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap;
+    }
+    .pill-success { background: var(--success-bg); color: var(--success-text); }
+    .pill-warning { background: var(--warning-bg); color: var(--warning-text); }
+    .pill-error { background: var(--error-bg); color: var(--error-text); }
+    .pill-running { background: rgba(11,107,111,0.10); color: var(--primary); }
+    .bar-wrap {
+      padding: 16px 18px; border-radius: 20px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.05); margin-bottom: 16px;
+    }
+    .bar-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 14px; color: var(--muted); }
+    .bar { height: 12px; border-radius: 999px; background: rgba(36,34,30,0.08); overflow: hidden; }
+    .bar > span { display: block; width: 68%; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #0b6b6f, #23979d); }
+    .stages { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+    .stage { padding: 14px; border-radius: 18px; border: 1px solid rgba(36,34,30,0.08); text-align: center; background: var(--surface-2); }
+    .stage strong { display: block; font-size: 14px; margin-bottom: 6px; }
+    .stage span { display: block; font-size: 13px; line-height: 1.45; }
+    .stage.success { background: var(--success-bg); border-color: rgba(69,122,44,0.20); }
+    .stage.success strong, .stage.success span { color: var(--success-text); }
+    .stage.running { background: rgba(11,107,111,0.10); border-color: rgba(11,107,111,0.22); }
+    .stage.running strong, .stage.running span { color: var(--primary); }
+    .stage.waiting { background: var(--warning-bg); border-color: rgba(191,128,29,0.20); }
+    .stage.waiting strong, .stage.waiting span { color: var(--warning-text); }
+    .stage.error { background: var(--error-bg); border-color: rgba(161,53,68,0.20); }
+    .stage.error strong, .stage.error span { color: var(--error-text); }
+    .main-grid { display: grid; grid-template-columns: minmax(0, 1.28fr) 430px; gap: 16px; align-items: start; }
+    .stack { display: grid; gap: 16px; }
+    .event-list { display: grid; gap: 12px; margin-top: 16px; }
+    .event {
+      display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 16px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.05);
+    }
+    .event time { font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+    .event strong { display: block; font-size: 14px; margin-bottom: 4px; }
+    .event span { display: block; font-size: 13px; color: var(--muted); line-height: 1.45; }
+    .mini-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .mini {
+      padding: 14px 16px; border-radius: 16px; background: var(--surface-2); border: 1px solid rgba(36,34,30,0.05); text-align: center;
+    }
+    .mini strong {
+      display: block; font-size: 13px; margin-bottom: 4px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .mini span { display: block; font-size: 18px; letter-spacing: -0.03em; }
+    .log-card { border-radius: 24px; overflow: hidden; min-height: 620px; display: grid; grid-template-rows: auto auto 1fr; }
+    .log-top {
+      padding: 18px 20px; border-bottom: 1px solid rgba(36,34,30,0.08); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    }
+    .log-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tool {
+      padding: 8px 10px; border-radius: 10px; background: #fff; color: var(--text); font-size: 12px; border: 1px solid rgba(36,34,30,0.08);
+    }
+    .log-tabs {
+      display: flex; gap: 8px; padding: 14px 20px; border-bottom: 1px solid rgba(36,34,30,0.08); flex-wrap: wrap; background: var(--surface);
+    }
+    .log-tab {
+      padding: 8px 12px; border-radius: 999px; font-size: 12px; color: var(--muted); background: #fff; border: 1px solid rgba(36,34,30,0.08);
+    }
+    .log-tab.active { color: var(--primary); background: rgba(11,107,111,0.10); border-color: rgba(11,107,111,0.20); }
+    .log-body {
+      padding: 10px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.55; background: var(--surface-2);
+    }
+    .log-line {
+      display: grid; grid-template-columns: 78px 54px 1fr; gap: 12px; padding: 8px 20px; border-top: 1px solid rgba(36,34,30,0.06);
+    }
+    .time { color: var(--faint); }
+    .type { color: var(--primary); text-transform: uppercase; font-weight: 600; }
+    .warn .type { color: var(--warning-text); }
+    .error .type { color: var(--error-text); }
+    .msg { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 1280px) {
+      .hero, .main-grid { grid-template-columns: 1fr; }
+      .log-card { min-height: 520px; }
+    }
+    @media (max-width: 1100px) { .stages { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .content { padding: 18px; }
+    }
+    @media (max-width: 760px) {
+      h1 { font-size: 30px; }
+      .stages { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .event { grid-template-columns: 1fr; }
+      .mini-stats { grid-template-columns: 1fr; }
+      .log-line { grid-template-columns: 1fr; gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CS</div>
+        <div>
+          <div class="brand-name">CodeSight</div>
+          <div class="brand-sub">Workspace</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-item"><span class="nav-icon">◫</span><span>Проекты</span></div>
+        <div class="nav-item active"><span class="nav-icon">◎</span><span>Запуски анализа</span></div>
+        <div class="nav-item"><span class="nav-icon">▣</span><span>Отчеты</span></div>
+        <div class="nav-item"><span class="nav-icon">⚙</span><span>Настройки</span></div>
+      </nav>
+    </aside>
+    <section class="content">
+      <div class="container">
+        <section class="hero">
+          <div>
+            <div class="eyebrow">Мониторинг выполнения</div>
+            <h1>Анализ проекта backend-api выполняется</h1>
+            <p class="description">Экран отображает текущее состояние очереди, прогресс этапов обработки и дает доступ к просмотру логов сборки и выполнения анализа без перехода в отдельный административный интерфейс.</p>
+          </div>
+          <div class="hero-side">
+            <div class="meta-box"><strong>Запуск</strong><span>#1843 · Full pipeline</span></div>
+            <div class="meta-box"><strong>Статус</strong><span>Running · 12m 48s</span></div>
+          </div>
+        </section>
+        <section class="progress-card">
+          <div class="progress-head">
+            <div>
+              <h2>Общий прогресс</h2>
+              <p>Выполнение организовано как последовательность независимых этапов с возможностью отслеживания состояния каждого шага.</p>
+            </div>
+            <span class="pill pill-running">Выполняется</span>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-top"><span>68% завершено</span><span>Осталось примерно 7 минут</span></div>
+            <div class="bar"><span></span></div>
+          </div>
+          <div class="stages">
+            <div class="stage success"><strong>Получение кода</strong><span>Успешно завершено</span></div>
+            <div class="stage success"><strong>Static analysis</strong><span>Успешно завершено</span></div>
+            <div class="stage running"><strong>Tests & coverage</strong><span>Выполняется</span></div>
+            <div class="stage error"><strong>Security scan</strong><span>Завершено с ошибкой</span></div>
+            <div class="stage waiting"><strong>Architecture scan</strong><span>Ожидает запуска</span></div>
+          </div>
+        </section>
+        <section class="main-grid">
+          <div class="stack">
+            <article class="card">
+              <h3>События выполнения</h3>
+              <p>Таймлайн отражает ключевые переходы между этапами анализа и позволяет быстро определить текущее состояние процесса.</p>
+              <div class="event-list">
+                <div class="event"><time>14:21:03</time><div><strong>Задача поставлена в очередь</strong><span>Создан execution job и передан в обработчик задач.</span></div><span class="pill pill-success">Done</span></div>
+                <div class="event"><time>14:21:41</time><div><strong>Исходный код получен</strong><span>Репозиторий клонирован, подготовлена рабочая директория.</span></div><span class="pill pill-success">Done</span></div>
+                <div class="event"><time>14:24:17</time><div><strong>Статический анализ завершен</strong><span>Сформированы базовые метрики и перечень найденных нарушений.</span></div><span class="pill pill-success">Done</span></div>
+                <div class="event"><time>14:28:06</time><div><strong>Запуск тестов и coverage</strong><span>Выполняется тестовый прогон и сбор покрытия исходного кода.</span></div><span class="pill pill-running">Running</span></div>
+                <div class="event"><time>14:28:54</time><div><strong>Ошибка этапа Security scan</strong><span>Не удалось завершить проверку зависимостей из-за таймаута индекса advisory database.</span></div><span class="pill pill-error">Error</span></div>
+              </div>
+            </article>
+            <article class="card">
+              <h3>Параметры текущего запуска</h3>
+              <p>Сводный блок связывает ход выполнения с исходной конфигурацией анализа и рабочим окружением.</p>
+              <div class="mini-stats">
+                <div class="mini"><strong>Профиль</strong><span>Полный</span></div>
+                <div class="mini"><strong>Ветка</strong><span>main</span></div>
+                <div class="mini"><strong>Python</strong><span>3.12</span></div>
+                <div class="mini"><strong>Worker</strong><span>analyzer-02</span></div>
+              </div>
+            </article>
+          </div>
+          <aside class="log-card">
+            <div class="log-top">
+              <div>
+                <h3>Логи сборки и анализа</h3>
+                <p>Просмотрщик логов оформлен в общей палитре интерфейса и поддерживает визуальное выделение информационных, предупреждающих и ошибочных сообщений.</p>
+              </div>
+              <div class="log-tools"><div class="tool">Поиск</div><div class="tool">Errors only</div><div class="tool">Скачать</div></div>
+            </div>
+            <div class="log-tabs"><div class="log-tab active">All logs</div><div class="log-tab">Build</div><div class="log-tab">Tests</div><div class="log-tab">Security</div></div>
+            <div class="log-body">
+              <div class="log-line"><span class="time">14:21:04</span><span class="type">info</span><span class="msg">Initialize pipeline runner for project backend-api</span></div>
+              <div class="log-line"><span class="time">14:21:11</span><span class="type">info</span><span class="msg">Clone repository into /workspace/jobs/1843/source</span></div>
+              <div class="log-line"><span class="time">14:21:39</span><span class="type">info</span><span class="msg">Install dependencies from requirements.txt completed</span></div>
+              <div class="log-line"><span class="time">14:22:03</span><span class="type">info</span><span class="msg">Run static analyzer with ruleset core-python-v2</span></div>
+              <div class="log-line"><span class="time">14:23:58</span><span class="type">info</span><span class="msg">Static analysis finished: 12 findings, 3 high severity</span></div>
+              <div class="log-line"><span class="time">14:24:17</span><span class="type">info</span><span class="msg">Start pytest execution with coverage collector enabled</span></div>
+              <div class="log-line"><span class="time">14:25:34</span><span class="type">info</span><span class="msg">Collected 148 tests, running grouped execution by module</span></div>
+              <div class="log-line warn"><span class="time">14:27:02</span><span class="type">warn</span><span class="msg">Test module tests/api/test_auth.py exceeded expected duration threshold</span></div>
+              <div class="log-line"><span class="time">14:27:44</span><span class="type">info</span><span class="msg">Coverage intermediate result: 76.4% lines covered</span></div>
+              <div class="log-line error"><span class="time">14:28:54</span><span class="type">error</span><span class="msg">Security scan worker returned dependency index timeout for advisory database</span></div>
+              <div class="log-line"><span class="time">14:29:11</span><span class="type">info</span><span class="msg">Architecture scan remains queued until dependent worker becomes available</span></div>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
