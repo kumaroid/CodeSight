@@ -12,6 +12,10 @@ class Settings(BaseSettings):
         7, alias="REFRESH_TOKEN_EXPIRE_DAYS"
     )
 
+    auth_db_user: str = pydantic.Field("postgres", alias="AUTH_DB_USER")
+    auth_db_password: str = pydantic.Field("postgres", alias="AUTH_DB_PASSWORD")
+    auth_db_name: str = pydantic.Field("auth_db", alias="AUTH_DB_NAME")
+
     database_url: str = pydantic.Field(
         "sqlite+aiosqlite:///./test.db", alias="DATABASE_URL"
     )

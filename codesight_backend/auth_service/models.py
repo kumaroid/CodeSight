@@ -12,7 +12,7 @@ class UUIDMixin(Base):
     __abstract__ = True
 
     id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, index=True, default_factory=uuid.uuid4
+        primary_key=True, index=True, default=uuid.uuid4
     )
 
 

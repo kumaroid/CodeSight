@@ -3,7 +3,6 @@ import uuid
 
 import bcrypt
 import jwt
-from jose import JWTError
 
 from .config import settings
 
@@ -49,5 +48,5 @@ def decode_token(token: str) -> dict:
 def get_user_id_from_token(token: str, expected_type: str = "access") -> int:
     payload = decode_token(token)
     if payload.get("type") != expected_type:
-        raise JWTError("Invalid token type")
+        raise Exception("Invalid token type")
     return int(payload["sub"])
