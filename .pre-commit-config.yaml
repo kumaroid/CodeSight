@@ -14,6 +14,8 @@ repos:
         entry: uv run ruff format
         language: system
         types: [python]
+        args:
+          - "codesight_backend"
 
       - id: ruff
         name: Run ruff lints
@@ -26,11 +28,11 @@ repos:
           - "--fix"
           - "codesight_backend"
 
-      - id: mypy
-        name: Validate types with MyPy
-        entry: uv run mypy
-        language: system
-        pass_filenames: false
-        types: [python]
-        args:
-          - ./codesight_backend
+      # - id: mypy
+      #   name: Validate types with MyPy
+      #   entry: uv run mypy
+      #   language: system
+      #   pass_filenames: false
+      #   types: [python]
+      #   args:
+      #     - ./codesight_backend

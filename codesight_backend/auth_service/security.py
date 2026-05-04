@@ -1,7 +1,9 @@
 from datetime import UTC, datetime, timedelta
+import uuid
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jose import JWTError
 
 from .config import settings
 
@@ -18,17 +20,19 @@ def verify_password(plain: str, hashed: str) -> bool:
 def _create_token(data: dict, expires_delta: timedelta) -> str:
     payload = data.copy()
     payload["exp"] = datetime.now(UTC) + expires_delta
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(
+        payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
 
 
-def create_access_token(user_id: int, email: str) -> str:
+def create_access_token(user_id: uuid.UUID, email: str) -> str:
     return _create_token(
         {"sub": str(user_id), "email": email, "type": "access"},
         timedelta(minutes=settings.access_token_expire_minutes),
     )
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: uuid.UUID) -> str:
     return _create_token(
         {"sub": str(user_id), "type": "refresh"},
         timedelta(days=settings.refresh_token_expire_days),
@@ -37,7 +41,9 @@ def create_refresh_token(user_id: int) -> str:
 
 def decode_token(token: str) -> dict:
     """Raises JWTError on invalid/expired token."""
-    return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    return jwt.decode(
+        token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+    )
 
 
 def get_user_id_from_token(token: str, expected_type: str = "access") -> int:

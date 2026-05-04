@@ -1,3 +1,5 @@
+import uuid
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -12,7 +14,7 @@ class UserLogin(BaseModel):
 
 
 class UserOut(BaseModel):
-    id: int
+    id: uuid.UUID
     email: str
     is_active: bool
 

@@ -8,6 +8,7 @@ from .models import User
 from .security import get_user_id_from_token
 from .service import get_user_by_id
 
+
 bearer_scheme = HTTPBearer()
 
 
