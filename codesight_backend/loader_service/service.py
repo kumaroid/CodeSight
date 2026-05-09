@@ -1,6 +1,6 @@
-"""Бизнес-логика: сохранение ZIP и клонирование Git-репозиториев."""
 from __future__ import annotations
 
+import asyncio
 import shutil
 import tempfile
 import uuid
@@ -16,12 +16,7 @@ from .config import settings
 from .models import Project
 
 
-# ---------------------------------------------------------------------------
-# Вспомогательные функции
-# ---------------------------------------------------------------------------
-
 def _project_storage_path(project_id: str) -> Path:
-    """Возвращает путь к директории проекта на диске."""
     return Path(settings.storage_dir) / project_id
 
 
@@ -29,22 +24,16 @@ def _ensure_storage_root() -> None:
     Path(settings.storage_dir).mkdir(parents=True, exist_ok=True)
 
 
-# ---------------------------------------------------------------------------
-# Загрузка из ZIP
-# ---------------------------------------------------------------------------
-
 async def upload_zip_project(
     file: UploadFile,
     db: AsyncSession,
 ) -> Project:
-    """Принимает ZIP-файл, распаковывает его и создаёт запись Project."""
     if file.content_type not in ("application/zip", "application/x-zip-compressed"):
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Файл должен быть ZIP-архивом.",
         )
 
-    # Читаем содержимое и проверяем размер
     content = await file.read()
     if len(content) > settings.max_zip_size_bytes:
         raise HTTPException(
@@ -55,17 +44,12 @@ async def upload_zip_project(
     project_id = str(uuid.uuid4())
     project_name = Path(file.filename or "project").stem
     storage_path = _project_storage_path(project_id)
-
     _ensure_storage_root()
-
-    # Распаковываем через временный файл
     try:
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
             tmp.write(content)
             tmp_path = Path(tmp.name)
-
         with zipfile.ZipFile(tmp_path, "r") as zf:
-            # Безопасность: отклоняем пути с ".."
             for member in zf.namelist():
                 if ".." in Path(member).parts:
                     raise HTTPException(
@@ -76,7 +60,7 @@ async def upload_zip_project(
     except zipfile.BadZipFile:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Файл не является корректным ZIP-архивом.",
+            detail="Файл не является корректным ZIP-архивом",
         )
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -94,27 +78,15 @@ async def upload_zip_project(
     return project
 
 
-# ---------------------------------------------------------------------------
-# Загрузка из Git-репозитория
-# ---------------------------------------------------------------------------
-
 async def upload_repo_project(
     repo_url: str,
     name: str | None,
     db: AsyncSession,
 ) -> Project:
-    """
-    Клонирует публичный Git-репозиторий (через GitHub API — без git-бинарника)
-    или скачивает ZIP-архив ветки main/master по GitHub URL.
-    Для не-GitHub репозиториев требует наличия git в PATH.
-    """
     project_id = str(uuid.uuid4())
     storage_path = _project_storage_path(project_id)
     _ensure_storage_root()
-
-    # Имя проекта из URL, если не передано явно
     derived_name = name or repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
-
     project = Project(
         id=project_id,
         name=derived_name,
@@ -140,11 +112,6 @@ async def upload_repo_project(
 
 
 async def _clone_repo(repo_url: str, dest: Path) -> None:
-    """
-    Пробует скачать репозиторий:
-    1. Для github.com — через Archive API (ZIP, без git).
-    2. Иначе — через subprocess git clone (git должен быть установлен).
-    """
     if "github.com" in repo_url:
         await _clone_github_via_api(repo_url, dest)
     else:
@@ -152,13 +119,7 @@ async def _clone_repo(repo_url: str, dest: Path) -> None:
 
 
 async def _clone_github_via_api(repo_url: str, dest: Path) -> None:
-    """
-    Скачивает архив репозитория через GitHub Archive API:
-    GET https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip
-    """
-    # Нормализуем URL: убираем .git, trailing slash
     clean = repo_url.rstrip("/").removesuffix(".git")
-    # Пробуем main, потом master
     for branch in ("main", "master"):
         archive_url = f"{clean}/archive/refs/heads/{branch}.zip"
         async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
@@ -166,14 +127,10 @@ async def _clone_github_via_api(repo_url: str, dest: Path) -> None:
             if response.status_code == 200:
                 _unzip_bytes(response.content, dest)
                 return
-
-    raise RuntimeError(
-        f"Не удалось скачать репозиторий {repo_url}: ветки main и master недоступны."
-    )
+    raise RuntimeError(f"Не удалось скачать репозиторий {repo_url}")
 
 
 def _unzip_bytes(content: bytes, dest: Path) -> None:
-    """Распаковывает ZIP из bytes в указанную директорию."""
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
         tmp.write(content)
         tmp_path = Path(tmp.name)
@@ -185,12 +142,14 @@ def _unzip_bytes(content: bytes, dest: Path) -> None:
 
 
 async def _clone_via_git(repo_url: str, dest: Path) -> None:
-    """Клонирует репозиторий через системный git (shallow clone)."""
-    import asyncio
-
     dest.mkdir(parents=True, exist_ok=True)
     proc = await asyncio.create_subprocess_exec(
-        "git", "clone", "--depth", "1", repo_url, str(dest),
+        "git",
+        "clone",
+        "--depth",
+        "1",
+        repo_url,
+        str(dest),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -200,10 +159,6 @@ async def _clone_via_git(repo_url: str, dest: Path) -> None:
             f"git clone завершился с ошибкой:\n{stderr.decode(errors='replace')}"
         )
 
-
-# ---------------------------------------------------------------------------
-# Получение проектов
-# ---------------------------------------------------------------------------
 
 async def get_project(project_id: str, db: AsyncSession) -> Project:
     result = await db.execute(select(Project).where(Project.id == project_id))
@@ -223,7 +178,6 @@ async def list_projects(db: AsyncSession) -> list[Project]:
 
 async def delete_project(project_id: str, db: AsyncSession) -> None:
     project = await get_project(project_id, db)
-    # Удаляем файлы с диска
     if project.storage_path:
         shutil.rmtree(project.storage_path, ignore_errors=True)
     await db.delete(project)

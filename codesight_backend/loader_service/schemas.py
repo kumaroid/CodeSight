@@ -4,15 +4,10 @@ from typing import Literal
 from pydantic import BaseModel, HttpUrl
 
 
-# ---- запросы ----
-
 class ProjectFromRepoRequest(BaseModel):
-    """Тело запроса для загрузки проекта из URL репозитория."""
     repo_url: HttpUrl
-    name: str | None = None  # если не задано — берётся из последнего сегмента URL
+    name: str | None = None
 
-
-# ---- ответы ----
 
 class ProjectResponse(BaseModel):
     id: str

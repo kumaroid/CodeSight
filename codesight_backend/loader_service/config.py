@@ -11,10 +11,9 @@ class Settings(BaseSettings):
         "sqlite+aiosqlite:///./projects.db", alias="PROJECT_DATABASE_URL"
     )
 
-    # Каталог для хранения распакованных проектов
-    storage_dir: str = pydantic.Field("/tmp/codesight_projects", alias="PROJECT_STORAGE_DIR")
-
-    # Максимальный размер ZIP-архива в байтах (50 МБ по умолчанию)
+    storage_dir: str = pydantic.Field(
+        "/tmp/codesight_projects", alias="PROJECT_STORAGE_DIR"
+    )
     max_zip_size_bytes: int = pydantic.Field(52_428_800, alias="PROJECT_MAX_ZIP_SIZE")
 
     app_host: str = "0.0.0.0"

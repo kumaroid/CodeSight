@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="CodeSight Project Service",
     version="1.0.0",
-    description="Сервис загрузки проектов: ZIP-архив или URL Git-репозитория.",
+    description="Сервис загрузки проектов: ZIP-архив или URL Git-репозитория",
     lifespan=lifespan,
 )
 
