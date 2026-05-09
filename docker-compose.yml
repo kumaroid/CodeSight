@@ -130,8 +130,47 @@ services:
       analysis_db:
         condition: service_healthy
 
+  # --- Security Service ---
+  security_db:
+    image: postgres:16-alpine
+    container_name: codesight_security_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SECURITY_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${SECURITY_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${SECURITY_DB_NAME:-security_db}
+    ports:
+      - "5435:5432"
+    volumes:
+      - security_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SECURITY_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  security_service:
+    build:
+      context: .
+      dockerfile: codesight_backend/security_service/Dockerfile
+    container_name: codesight_security_service
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    env_file:
+      - .env
+    environment:
+      SECURITY_DATABASE_URL: postgresql+asyncpg://${SECURITY_DB_USER:-postgres}:${SECURITY_DB_PASSWORD:-postgres}@security_db:5432/${SECURITY_DB_NAME:-security_db}
+      PROJECT_STORAGE_DIR: /tmp/codesight_projects
+    volumes:
+      - projects_storage:/tmp/codesight_projects
+    depends_on:
+      security_db:
+        condition: service_healthy
+
 volumes:
   redis_data:
   auth_db_data:
   analysis_db_data:
+  security_db_data:
   projects_storage:
