@@ -91,6 +91,47 @@ services:
       auth_db:
         condition: service_healthy
 
+  # --- Analysis Service ---
+  analysis_db:
+    image: postgres:16-alpine
+    container_name: codesight_analysis_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${ANALYSIS_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${ANALYSIS_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${ANALYSIS_DB_NAME:-analysis_db}
+    ports:
+      - "5434:5432"
+    volumes:
+      - analysis_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYSIS_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  analysis_service:
+    build:
+      context: .
+      dockerfile: codesight_backend/analysis_service/Dockerfile
+    container_name: codesight_analysis_service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    env_file:
+      - .env
+    environment:
+      ANALYSIS_DATABASE_URL: postgresql+asyncpg://${ANALYSIS_DB_USER:-postgres}:${ANALYSIS_DB_PASSWORD:-postgres}@analysis_db:5432/${ANALYSIS_DB_NAME:-analysis_db}
+      # Общий volume с loader_service, чтобы видеть распакованные проекты
+      PROJECT_STORAGE_DIR: /tmp/codesight_projects
+    volumes:
+      - projects_storage:/tmp/codesight_projects
+    depends_on:
+      analysis_db:
+        condition: service_healthy
+
 volumes:
   redis_data:
   auth_db_data:
+  analysis_db_data:
+  projects_storage:
