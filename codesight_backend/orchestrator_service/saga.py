@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 STEP_COMMAND_TOPIC: dict[str, str] = {
     "analysis": settings.topic_analysis_start,
     "security": settings.topic_security_start,
-    "arch":     settings.topic_arch_start,
-    "testing":  settings.topic_testing_start,
+    "arch": settings.topic_arch_start,
+    "testing": settings.topic_testing_start,
 }
 
 # Топики результатов, за которыми слушает оркестратор
@@ -35,8 +35,8 @@ RESULT_TOPICS = [
 TOPIC_TO_STEP: dict[str, str] = {
     settings.topic_analysis_result: "analysis",
     settings.topic_security_result: "security",
-    settings.topic_arch_result:     "arch",
-    settings.topic_testing_result:  "testing",
+    settings.topic_arch_result: "arch",
+    settings.topic_testing_result: "testing",
 }
 
 
@@ -123,7 +123,9 @@ async def _handle_result(step: str, payload: dict) -> None:
     async with AsyncSessionLocal() as db:
         saga = await db.get(SagaState, result.saga_id)
         if saga is None:
-            logger.warning("Сага %s не найдена (результат шага %s)", result.saga_id, step)
+            logger.warning(
+                "Сага %s не найдена (результат шага %s)", result.saga_id, step
+            )
             return
 
         steps_status: dict[str, str] = json.loads(saga.steps_status)

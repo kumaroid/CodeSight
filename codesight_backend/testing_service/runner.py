@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -62,9 +61,7 @@ class RawRunResult:
 # ---------------------------------------------------------------------------
 
 
-async def _run(
-    cmd: list[str], cwd: str, timeout: int
-) -> tuple[str, str, int]:
+async def _run(cmd: list[str], cwd: str, timeout: int) -> tuple[str, str, int]:
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=cwd,
@@ -77,7 +74,11 @@ async def _run(
         proc.kill()
         await proc.communicate()
         raise RuntimeError(f"Таймаут выполнения команды {' '.join(cmd)} ({timeout}s)")
-    return stdout.decode(errors="replace"), stderr.decode(errors="replace"), proc.returncode
+    return (
+        stdout.decode(errors="replace"),
+        stderr.decode(errors="replace"),
+        proc.returncode,
+    )
 
 
 def _safe_div(a: int, b: int) -> float:
@@ -89,9 +90,9 @@ def _safe_div(a: int, b: int) -> float:
 # ---------------------------------------------------------------------------
 
 
-def _parse_coverage_xml(xml_path: str, project_path: str) -> tuple[
-    float, int, int, int, int, int, float, list[RawFileCoverage]
-]:
+def _parse_coverage_xml(
+    xml_path: str, project_path: str
+) -> tuple[float, int, int, int, int, int, float, list[RawFileCoverage]]:
     """
     Возвращает:
       (coverage_pct, lines_total, lines_covered, lines_missing,
@@ -114,15 +115,17 @@ def _parse_coverage_xml(xml_path: str, project_path: str) -> tuple[
     file_coverages: list[RawFileCoverage] = []
     for cls in root.iter("class"):
         fname = cls.attrib.get("filename", "")
-        rel_path = os.path.relpath(fname, project_path) if os.path.isabs(fname) else fname
+        rel_path = (
+            os.path.relpath(fname, project_path) if os.path.isabs(fname) else fname
+        )
 
         lines = cls.findall("lines/line")
         f_total = len(lines)
-        f_covered = sum(1 for l in lines if int(l.attrib.get("hits", 0)) > 0)
+        f_covered = sum(1 for line in lines if int(line.attrib.get("hits", 0)) > 0)
         f_missing_nums = [
-            int(l.attrib.get("number", 0))
-            for l in lines
-            if int(l.attrib.get("hits", 0)) == 0
+            int(line.attrib.get("number", 0))
+            for line in lines
+            if int(line.attrib.get("hits", 0)) == 0
         ]
 
         file_coverages.append(
@@ -153,7 +156,9 @@ def _parse_coverage_xml(xml_path: str, project_path: str) -> tuple[
 # ---------------------------------------------------------------------------
 
 
-def _parse_junit_xml(xml_path: str) -> tuple[int, int, int, int, int, float, list[RawTestResult]]:
+def _parse_junit_xml(
+    xml_path: str,
+) -> tuple[int, int, int, int, int, float, list[RawTestResult]]:
     """
     Возвращает:
       (total, passed, failed, errors, skipped, duration, test_results)
@@ -232,7 +237,9 @@ async def run_tests(project_path: str, timeout: int = 120) -> RawRunResult:
     junit_xml = str(tmp_dir / "junit.xml")
 
     cmd = [
-        "python", "-m", "pytest",
+        "python",
+        "-m",
+        "pytest",
         "--tb=short",
         "--quiet",
         f"--junitxml={junit_xml}",
@@ -248,8 +255,13 @@ async def run_tests(project_path: str, timeout: int = 120) -> RawRunResult:
     # --- Парсим coverage ---
     if os.path.exists(coverage_xml):
         (
-            cov_pct, lines_total, lines_covered, lines_missing,
-            branches_total, branches_covered, branch_pct,
+            cov_pct,
+            lines_total,
+            lines_covered,
+            lines_missing,
+            branches_total,
+            branches_covered,
+            branch_pct,
             file_coverages,
         ) = _parse_coverage_xml(coverage_xml, project_path)
     else:
@@ -261,8 +273,13 @@ async def run_tests(project_path: str, timeout: int = 120) -> RawRunResult:
     # --- Парсим junit ---
     if os.path.exists(junit_xml):
         (
-            tests_total, tests_passed, tests_failed, tests_error,
-            tests_skipped, duration, test_results,
+            tests_total,
+            tests_passed,
+            tests_failed,
+            tests_error,
+            tests_skipped,
+            duration,
+            test_results,
         ) = _parse_junit_xml(junit_xml)
     else:
         tests_total = tests_passed = tests_failed = tests_error = tests_skipped = 0

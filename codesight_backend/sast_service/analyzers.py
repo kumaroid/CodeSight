@@ -1,11 +1,9 @@
-"""Обёртки над инструментами статического анализа."""
-
 from __future__ import annotations
 
 import asyncio
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -28,7 +26,11 @@ async def _run(cmd: list[str], cwd: str) -> tuple[str, str, int]:
         stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await proc.communicate()
-    return stdout.decode(errors="replace"), stderr.decode(errors="replace"), proc.returncode
+    return (
+        stdout.decode(errors="replace"),
+        stderr.decode(errors="replace"),
+        proc.returncode,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +132,7 @@ async def run_bandit(project_path: str) -> list[RawIssue]:
 # mypy
 # ---------------------------------------------------------------------------
 
+
 async def run_mypy(project_path: str) -> list[RawIssue]:
     stdout, _, _ = await _run(
         [
@@ -168,6 +171,7 @@ async def run_mypy(project_path: str) -> list[RawIssue]:
 # ---------------------------------------------------------------------------
 # Точка входа
 # ---------------------------------------------------------------------------
+
 
 async def run_all(project_path: str) -> list[RawIssue]:
     """Запустить все анализаторы параллельно."""

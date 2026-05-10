@@ -43,9 +43,7 @@ class Issue(Base):
     __tablename__ = "issues"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(
-        String(36), nullable=False, index=True
-    )
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     tool: Mapped[str] = mapped_column(String(50), nullable=False)  # ruff, bandit, mypy
     severity: Mapped[str] = mapped_column(
         Enum("error", "warning", "info", name="issue_severity_enum"),
@@ -55,7 +53,9 @@ class Issue(Base):
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
     line: Mapped[int | None] = mapped_column(Integer, nullable=True)
     column: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)  # E501, B101 ...
+    code: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # E501, B101 ...
     message: Mapped[str] = mapped_column(Text, nullable=False)
 
     run: Mapped["AnalysisRun"] = relationship("AnalysisRun", back_populates="issues")

@@ -33,24 +33,28 @@ async def start_arch_analysis(
         ) from exc
 
     for m in metrics:
-        db.add(ComponentMetric(
-            run_id=run.id,
-            component=m.component,
-            ca=m.ca,
-            ce=m.ce,
-            instability=m.instability,
-            coupling_score=m.coupling_score,
-            cohesion_score=m.cohesion_score,
-        ))
+        db.add(
+            ComponentMetric(
+                run_id=run.id,
+                component=m.component,
+                ca=m.ca,
+                ce=m.ce,
+                instability=m.instability,
+                coupling_score=m.coupling_score,
+                cohesion_score=m.cohesion_score,
+            )
+        )
 
     for r in recommendations:
-        db.add(ArchRecommendation(
-            run_id=run.id,
-            severity=r.severity,
-            component=r.component,
-            rule=r.rule,
-            message=r.message,
-        ))
+        db.add(
+            ArchRecommendation(
+                run_id=run.id,
+                severity=r.severity,
+                component=r.component,
+                rule=r.rule,
+                message=r.message,
+            )
+        )
 
     run.status = "completed"
     await db.commit()

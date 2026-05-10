@@ -49,7 +49,9 @@ class SecurityFinding(Base):
     owasp_category: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     owasp_title: Mapped[str] = mapped_column(String(200), nullable=False)
 
-    checker: Mapped[str] = mapped_column(String(50), nullable=False)  # bandit, semgrep, regex
+    checker: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # bandit, semgrep, regex
     severity: Mapped[str] = mapped_column(
         Enum("critical", "high", "medium", "low", "info", name="finding_severity_enum"),
         nullable=False,
@@ -60,6 +62,10 @@ class SecurityFinding(Base):
     column: Mapped[int | None] = mapped_column(Integer, nullable=True)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    cwe: Mapped[str | None] = mapped_column(String(20), nullable=True)  # CWE-89, CWE-78 ...
+    cwe: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # CWE-89, CWE-78 ...
 
-    scan: Mapped["SecurityScan"] = relationship("SecurityScan", back_populates="findings")
+    scan: Mapped["SecurityScan"] = relationship(
+        "SecurityScan", back_populates="findings"
+    )

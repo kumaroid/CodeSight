@@ -1,8 +1,5 @@
-import json
-
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 
 from .database import get_db
@@ -39,8 +36,12 @@ async def analyze(
     result = await db.execute(
         select(ArchRun)
         .options(
-            __import__('sqlalchemy.orm', fromlist=['selectinload']).selectinload(ArchRun.metrics),
-            __import__('sqlalchemy.orm', fromlist=['selectinload']).selectinload(ArchRun.recommendations),
+            __import__("sqlalchemy.orm", fromlist=["selectinload"]).selectinload(
+                ArchRun.metrics
+            ),
+            __import__("sqlalchemy.orm", fromlist=["selectinload"]).selectinload(
+                ArchRun.recommendations
+            ),
         )
         .where(ArchRun.id == run.id)
     )

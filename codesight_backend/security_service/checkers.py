@@ -22,16 +22,16 @@ import asyncio
 import json
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 
 @dataclass
 class RawFinding:
-    owasp_category: str   # A01..A10
+    owasp_category: str  # A01..A10
     owasp_title: str
     checker: str
-    severity: str         # critical | high | medium | low | info
+    severity: str  # critical | high | medium | low | info
     file_path: str
     line: int | None
     column: int | None
@@ -49,7 +49,11 @@ async def _run(cmd: list[str], cwd: str) -> tuple[str, str, int]:
         stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await proc.communicate()
-    return stdout.decode(errors="replace"), stderr.decode(errors="replace"), proc.returncode
+    return (
+        stdout.decode(errors="replace"),
+        stderr.decode(errors="replace"),
+        proc.returncode,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +145,7 @@ BANDIT_SEVERITY_MAP: dict[str, str] = {
 # A03 / A10 / A05 — regex-чекер по исходникам
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RegexRule:
     pattern: re.Pattern[str]
@@ -169,7 +174,7 @@ REGEX_RULES: list[RegexRule] = [
     # A03 — Command Injection
     RegexRule(
         pattern=re.compile(
-            r'os\.system\s*\(|subprocess\.call\s*\(.*shell\s*=\s*True|subprocess\.Popen\s*\(.*shell\s*=\s*True',
+            r"os\.system\s*\(|subprocess\.call\s*\(.*shell\s*=\s*True|subprocess\.Popen\s*\(.*shell\s*=\s*True",
             re.IGNORECASE,
         ),
         owasp_category="A03",
@@ -208,7 +213,7 @@ REGEX_RULES: list[RegexRule] = [
     # A02 — MD5/SHA1 weak hash
     RegexRule(
         pattern=re.compile(
-            r'hashlib\.(md5|sha1)\s*\(',
+            r"hashlib\.(md5|sha1)\s*\(",
             re.IGNORECASE,
         ),
         owasp_category="A02",
@@ -234,7 +239,7 @@ REGEX_RULES: list[RegexRule] = [
     # A05 — Debug mode enabled
     RegexRule(
         pattern=re.compile(
-            r'DEBUG\s*=\s*True|app\.run\s*\(.*debug\s*=\s*True',
+            r"DEBUG\s*=\s*True|app\.run\s*\(.*debug\s*=\s*True",
             re.IGNORECASE,
         ),
         owasp_category="A05",
@@ -247,7 +252,7 @@ REGEX_RULES: list[RegexRule] = [
     # A05 — eval / exec
     RegexRule(
         pattern=re.compile(
-            r'\beval\s*\(|\bexec\s*\(',
+            r"\beval\s*\(|\bexec\s*\(",
             re.IGNORECASE,
         ),
         owasp_category="A05",
@@ -273,7 +278,7 @@ REGEX_RULES: list[RegexRule] = [
     # A07 — Insecure cookie (no httponly/secure)
     RegexRule(
         pattern=re.compile(
-            r'set_cookie\s*\((?![^)]*httponly\s*=\s*True)',
+            r"set_cookie\s*\((?![^)]*httponly\s*=\s*True)",
             re.IGNORECASE,
         ),
         owasp_category="A07",
@@ -286,7 +291,7 @@ REGEX_RULES: list[RegexRule] = [
     # A10 — SSRF via requests with user input
     RegexRule(
         pattern=re.compile(
-            r'requests\.(get|post|put|delete|patch)\s*\(\s*(url|request\.',
+            r"requests\.(get|post|put|delete|patch)\s*\(\s*(url|request\.",
             re.IGNORECASE,
         ),
         owasp_category="A10",
@@ -299,7 +304,7 @@ REGEX_RULES: list[RegexRule] = [
     # A09 — No logging for exceptions
     RegexRule(
         pattern=re.compile(
-            r'except\s+[\w,\s]*:\s*\n\s*pass',
+            r"except\s+[\w,\s]*:\s*\n\s*pass",
             re.IGNORECASE,
         ),
         owasp_category="A09",
@@ -317,8 +322,10 @@ PYTHON_EXTENSIONS = {".py"}
 def _collect_python_files(project_path: str) -> list[Path]:
     root = Path(project_path)
     return [
-        p for p in root.rglob("*")
-        if p.is_file() and p.suffix in PYTHON_EXTENSIONS
+        p
+        for p in root.rglob("*")
+        if p.is_file()
+        and p.suffix in PYTHON_EXTENSIONS
         and ".git" not in p.parts
         and "__pycache__" not in p.parts
     ]
@@ -327,6 +334,7 @@ def _collect_python_files(project_path: str) -> list[Path]:
 # ---------------------------------------------------------------------------
 # Bandit-based checker (A01..A07)
 # ---------------------------------------------------------------------------
+
 
 async def run_bandit_security(project_path: str) -> list[RawFinding]:
     """Запустить bandit и сопоставить результаты с OWASP категориями."""
@@ -376,6 +384,7 @@ async def run_bandit_security(project_path: str) -> list[RawFinding]:
 # Regex-based checker (дополнительные паттерны по всем OWASP категориям)
 # ---------------------------------------------------------------------------
 
+
 async def run_regex_security(project_path: str) -> list[RawFinding]:
     """Сканировать исходники регулярными выражениями."""
     findings: list[RawFinding] = []
@@ -413,6 +422,7 @@ async def run_regex_security(project_path: str) -> list[RawFinding]:
 # ---------------------------------------------------------------------------
 # Зависимости — A06 Vulnerable and Outdated Components
 # ---------------------------------------------------------------------------
+
 
 async def run_dependency_check(project_path: str) -> list[RawFinding]:
     """Проверить зависимости на известные CVE через pip-audit."""
@@ -470,6 +480,7 @@ async def run_dependency_check(project_path: str) -> list[RawFinding]:
 # ---------------------------------------------------------------------------
 # Точка входа
 # ---------------------------------------------------------------------------
+
 
 async def run_all(project_path: str) -> list[RawFinding]:
     """Запустить все чекеры параллельно и вернуть объединённый список находок."""

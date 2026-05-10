@@ -80,6 +80,7 @@ async def get_completeness(project_id: str) -> dict:
     project_path = os.path.join(settings.storage_dir, project_id)
     if not os.path.isdir(project_path):
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=404,
             detail=f"Директория проекта не найдена: {project_path}",

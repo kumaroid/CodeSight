@@ -24,8 +24,8 @@ from dataclasses import dataclass, field
 class ComponentData:
     name: str
     package: str = ""
-    afferent: set[str] = field(default_factory=set)   # Ca: кто зависит ОТ меня
-    efferent: set[str] = field(default_factory=set)   # Ce: от кого завишу Я
+    afferent: set[str] = field(default_factory=set)  # Ca: кто зависит ОТ меня
+    efferent: set[str] = field(default_factory=set)  # Ce: от кого завишу Я
 
 
 @dataclass
@@ -33,14 +33,14 @@ class Metrics:
     component: str
     ca: int
     ce: int
-    instability: float          # Ce / (Ca + Ce)
-    coupling_score: float       # (Ca + Ce) / (N - 1)
-    cohesion_score: float       # доля соседей в том же пакете
+    instability: float  # Ce / (Ca + Ce)
+    coupling_score: float  # (Ca + Ce) / (N - 1)
+    cohesion_score: float  # доля соседей в том же пакете
 
 
 @dataclass
 class Recommendation:
-    severity: str               # critical | warning | info
+    severity: str  # critical | warning | info
     component: str | None
     rule: str
     message: str
@@ -59,13 +59,13 @@ def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
 
     # Паттерны объявления: [Name], component Name, rectangle Name
     decl_re = re.compile(
-        r'(?:^|\s)\[([\w.\-/: ]+)\]'
+        r"(?:^|\s)\[([\w.\-/: ]+)\]"
         r'|(?:^|\s)(?:component|rectangle|node|database|cloud)\s+"?([\w.\-/: ]+)"?'
     )
     # Паттерны зависимостей: --> , ..> , .> , <|--, -->
     dep_re = re.compile(
-        r'\[([\w.\-/: ]+)\]\s*(?:-->|\.\.>|\->|\.<|--|<\|--|-\|>)\s*\[([\w.\-/: ]+)\]'
-        r'|([\w.\-/: ]+)\s*(?:-->|\.\.>|\->|--)\s*([\w.\-/: ]+)'
+        r"\[([\w.\-/: ]+)\]\s*(?:-->|\.\.>|\->|\.<|--|<\|--|-\|>)\s*\[([\w.\-/: ]+)\]"
+        r"|([\w.\-/: ]+)\s*(?:-->|\.\.>|\->|--)\s*([\w.\-/: ]+)"
     )
 
     current_pkg = ""
@@ -75,7 +75,9 @@ def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
         line = raw.strip()
 
         # Вход в package/namespace
-        pkg_match = re.match(r'(?:package|namespace|folder)\s+["\']?([\w.\-/ ]+)["\']?\s*\{', line)
+        pkg_match = re.match(
+            r'(?:package|namespace|folder)\s+["\']?([\w.\-/ ]+)["\']?\s*\{', line
+        )
         if pkg_match:
             pkg_name = pkg_match.group(1).strip()
             pkg_stack.append(pkg_name)
@@ -129,7 +131,8 @@ def _compute_metrics(components: dict[str, ComponentData]) -> list[Metrics]:
         neighbors = comp.afferent | comp.efferent
         if neighbors and comp.package:
             same_pkg = sum(
-                1 for nb in neighbors
+                1
+                for nb in neighbors
                 if components.get(nb, ComponentData(name=nb)).package == comp.package
             )
             cohesion_score = same_pkg / len(neighbors)
@@ -139,14 +142,16 @@ def _compute_metrics(components: dict[str, ComponentData]) -> list[Metrics]:
         else:
             cohesion_score = 1.0  # нет зависимостей — изолирован (хорошая когезия)
 
-        result.append(Metrics(
-            component=comp.name,
-            ca=ca,
-            ce=ce,
-            instability=round(instability, 4),
-            coupling_score=round(min(coupling_score, 1.0), 4),
-            cohesion_score=round(cohesion_score, 4),
-        ))
+        result.append(
+            Metrics(
+                component=comp.name,
+                ca=ca,
+                ce=ce,
+                instability=round(instability, 4),
+                coupling_score=round(min(coupling_score, 1.0), 4),
+                cohesion_score=round(cohesion_score, 4),
+            )
+        )
 
     return result
 
@@ -161,53 +166,61 @@ def _generate_recommendations(
     # 1. God-компонент: очень высокий coupling
     for m in metrics:
         if m.coupling_score >= _COUPLING_CRITICAL:
-            recs.append(Recommendation(
-                severity="critical",
-                component=m.component,
-                rule="GOD_COMPONENT",
-                message=(
-                    f"Компонент '{m.component}' имеет coupling_score={m.coupling_score:.2f} "
-                    f"(Ca={m.ca}, Ce={m.ce}). Рекомендуется разбить на более мелкие части."
-                ),
-            ))
+            recs.append(
+                Recommendation(
+                    severity="critical",
+                    component=m.component,
+                    rule="GOD_COMPONENT",
+                    message=(
+                        f"Компонент '{m.component}' имеет coupling_score={m.coupling_score:.2f} "
+                        f"(Ca={m.ca}, Ce={m.ce}). Рекомендуется разбить на более мелкие части."
+                    ),
+                )
+            )
         elif m.coupling_score >= _COUPLING_HIGH:
-            recs.append(Recommendation(
-                severity="warning",
-                component=m.component,
-                rule="HIGH_COUPLING",
-                message=(
-                    f"Компонент '{m.component}' имеет высокую связанность: "
-                    f"coupling_score={m.coupling_score:.2f} (Ca={m.ca}, Ce={m.ce})."
-                ),
-            ))
+            recs.append(
+                Recommendation(
+                    severity="warning",
+                    component=m.component,
+                    rule="HIGH_COUPLING",
+                    message=(
+                        f"Компонент '{m.component}' имеет высокую связанность: "
+                        f"coupling_score={m.coupling_score:.2f} (Ca={m.ca}, Ce={m.ce})."
+                    ),
+                )
+            )
 
     # 2. Нестабильные абстрактные зависимости (принцип стабильных зависимостей)
     for m in metrics:
         if m.instability >= _INSTABILITY_WARNING and m.ca > 0:
-            recs.append(Recommendation(
-                severity="warning",
-                component=m.component,
-                rule="UNSTABLE_DEPENDENCY",
-                message=(
-                    f"Компонент '{m.component}' нестабилен (I={m.instability:.2f}), "
-                    f"но на него зависят {m.ca} других компонент(а). "
-                    "Стабильные компоненты не должны зависеть от нестабильных."
-                ),
-            ))
+            recs.append(
+                Recommendation(
+                    severity="warning",
+                    component=m.component,
+                    rule="UNSTABLE_DEPENDENCY",
+                    message=(
+                        f"Компонент '{m.component}' нестабилен (I={m.instability:.2f}), "
+                        f"но на него зависят {m.ca} других компонент(а). "
+                        "Стабильные компоненты не должны зависеть от нестабильных."
+                    ),
+                )
+            )
 
     # 3. Низкая когезия
     for m in metrics:
         if m.cohesion_score < _COHESION_LOW and (m.ca + m.ce) > 1:
-            recs.append(Recommendation(
-                severity="warning",
-                component=m.component,
-                rule="LOW_COHESION",
-                message=(
-                    f"Компонент '{m.component}' имеет низкую когезию: "
-                    f"cohesion_score={m.cohesion_score:.2f}. "
-                    "Большинство зависимостей выходят за пределы пакета."
-                ),
-            ))
+            recs.append(
+                Recommendation(
+                    severity="warning",
+                    component=m.component,
+                    rule="LOW_COHESION",
+                    message=(
+                        f"Компонент '{m.component}' имеет низкую когезию: "
+                        f"cohesion_score={m.cohesion_score:.2f}. "
+                        "Большинство зависимостей выходят за пределы пакета."
+                    ),
+                )
+            )
 
     # 4. Циклические зависимости (простая попарная проверка)
     comp_map = {c.name: c for c in components.values()}
@@ -220,43 +233,51 @@ def _generate_recommendations(
             dep_data = comp_map.get(dep)
             if dep_data and comp.name in dep_data.efferent:
                 visited_pairs.add(pair)
-                recs.append(Recommendation(
-                    severity="critical",
-                    component=comp.name,
-                    rule="CIRCULAR_DEPENDENCY",
-                    message=(
-                        f"Обнаружена циклическая зависимость между "
-                        f"'{comp.name}' и '{dep}'. Циклы нарушают принцип ацикличности зависимостей."
-                    ),
-                ))
+                recs.append(
+                    Recommendation(
+                        severity="critical",
+                        component=comp.name,
+                        rule="CIRCULAR_DEPENDENCY",
+                        message=(
+                            f"Обнаружена циклическая зависимость между "
+                            f"'{comp.name}' и '{dep}'. Циклы нарушают принцип ацикличности зависимостей."
+                        ),
+                    )
+                )
 
     # 5. Общий балл: если средний coupling слишком высок
     if n > 1:
         avg_coupling = sum(m.coupling_score for m in metrics) / n
         if avg_coupling > _COUPLING_HIGH:
-            recs.append(Recommendation(
-                severity="critical",
-                component=None,
-                rule="GLOBAL_HIGH_COUPLING",
-                message=(
-                    f"Средний coupling по всему проекту: {avg_coupling:.2f}. "
-                    "Архитектура сильно связана — рассмотрите введение слоёв абстракций "
-                    "или паттернов (Mediator, Façade, Dependency Inversion)."
-                ),
-            ))
+            recs.append(
+                Recommendation(
+                    severity="critical",
+                    component=None,
+                    rule="GLOBAL_HIGH_COUPLING",
+                    message=(
+                        f"Средний coupling по всему проекту: {avg_coupling:.2f}. "
+                        "Архитектура сильно связана — рассмотрите введение слоёв абстракций "
+                        "или паттернов (Mediator, Façade, Dependency Inversion)."
+                    ),
+                )
+            )
 
     if not recs:
-        recs.append(Recommendation(
-            severity="info",
-            component=None,
-            rule="ARCHITECTURE_OK",
-            message="Метрики в норме. Явных архитектурных нарушений не обнаружено.",
-        ))
+        recs.append(
+            Recommendation(
+                severity="info",
+                component=None,
+                rule="ARCHITECTURE_OK",
+                message="Метрики в норме. Явных архитектурных нарушений не обнаружено.",
+            )
+        )
 
     return recs
 
 
-def analyze_plantuml(plantuml_text: str) -> tuple[list[Metrics], list[Recommendation], dict]:
+def analyze_plantuml(
+    plantuml_text: str,
+) -> tuple[list[Metrics], list[Recommendation], dict]:
     """Основная точка входа. Возвращает (metrics, recommendations, summary)."""
     lines = plantuml_text.splitlines()
     components = _extract_components(lines)

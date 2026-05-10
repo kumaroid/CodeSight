@@ -27,13 +27,19 @@ class SagaState(Base):
     project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
     # Запрошенные виды анализа, хранятся как JSON-строка: '["analysis","security"]'
-    requested_steps: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
+    requested_steps: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]"
+    )  # JSON
 
     # Статус каждого шага — тоже JSON: '{"analysis": "pending", "security": "running"}'
-    steps_status: Mapped[str] = mapped_column(Text, nullable=False, default="{}")  # JSON
+    steps_status: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}"
+    )  # JSON
 
     # Итоговые run_id от каждого сервиса: '{"analysis": "<uuid>", "security": "<uuid>"}'
-    steps_run_ids: Mapped[str] = mapped_column(Text, nullable=False, default="{}")  # JSON
+    steps_run_ids: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}"
+    )  # JSON
 
     status: Mapped[str] = mapped_column(
         Enum(

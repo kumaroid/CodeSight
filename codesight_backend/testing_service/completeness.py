@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -11,14 +11,14 @@ from pathlib import Path
 class CompletenessReport:
     """Отчёт о полноте покрытия тестами."""
 
-    source_files: list[str]          # Python-файлы (не тесты)
-    test_files: list[str]            # Файлы тестов
-    untested_files: list[str]        # Исходники без соответствующего теста
+    source_files: list[str]  # Python-файлы (не тесты)
+    test_files: list[str]  # Файлы тестов
+    untested_files: list[str]  # Исходники без соответствующего теста
 
     source_count: int
     test_count: int
     untested_count: int
-    completeness_percent: float      # % исходников, у которых есть тест
+    completeness_percent: float  # % исходников, у которых есть тест
 
 
 def _collect_python_files(root: str) -> tuple[list[str], list[str]]:
@@ -30,12 +30,24 @@ def _collect_python_files(root: str) -> tuple[list[str], list[str]]:
     source_files: list[str] = []
     test_files: list[str] = []
 
-    skip_dirs = {"__pycache__", ".git", ".tox", ".venv", "venv", "env",
-                 "node_modules", ".codesight_tmp", ".mypy_cache", ".ruff_cache"}
+    skip_dirs = {
+        "__pycache__",
+        ".git",
+        ".tox",
+        ".venv",
+        "venv",
+        "env",
+        "node_modules",
+        ".codesight_tmp",
+        ".mypy_cache",
+        ".ruff_cache",
+    }
 
     for dirpath, dirnames, filenames in os.walk(root):
         # Пропускаем скрытые и служебные директории
-        dirnames[:] = [d for d in dirnames if d not in skip_dirs and not d.startswith(".")]
+        dirnames[:] = [
+            d for d in dirnames if d not in skip_dirs and not d.startswith(".")
+        ]
 
         rel_dir = os.path.relpath(dirpath, root)
         is_test_dir = any(
@@ -52,9 +64,7 @@ def _collect_python_files(root: str) -> tuple[list[str], list[str]]:
             rel_path = os.path.relpath(os.path.join(dirpath, fname), root)
 
             is_test_file = (
-                is_test_dir
-                or fname.startswith("test_")
-                or fname.endswith("_test.py")
+                is_test_dir or fname.startswith("test_") or fname.endswith("_test.py")
             )
 
             if is_test_file:

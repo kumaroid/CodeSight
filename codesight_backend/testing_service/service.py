@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .completeness import analyze_completeness
 from .config import settings
 from .models import FileCoverage, TestResult, TestRun
 from .runner import run_tests
@@ -74,25 +73,29 @@ async def _execute_test_run(run_id: str, project_id: str) -> None:
 
         # Детализация по файлам
         for fc in raw.file_coverages:
-            db.add(FileCoverage(
-                run_id=run_id,
-                file_path=fc.file_path,
-                lines_total=fc.lines_total,
-                lines_covered=fc.lines_covered,
-                lines_missing=fc.lines_missing,
-                coverage_percent=fc.coverage_percent,
-                missing_lines=json.dumps(fc.missing_lines),
-            ))
+            db.add(
+                FileCoverage(
+                    run_id=run_id,
+                    file_path=fc.file_path,
+                    lines_total=fc.lines_total,
+                    lines_covered=fc.lines_covered,
+                    lines_missing=fc.lines_missing,
+                    coverage_percent=fc.coverage_percent,
+                    missing_lines=json.dumps(fc.missing_lines),
+                )
+            )
 
         # Результаты отдельных тестов
         for tr in raw.test_results:
-            db.add(TestResult(
-                run_id=run_id,
-                node_id=tr.node_id,
-                outcome=tr.outcome,
-                duration_seconds=tr.duration_seconds,
-                longrepr=tr.longrepr,
-            ))
+            db.add(
+                TestResult(
+                    run_id=run_id,
+                    node_id=tr.node_id,
+                    outcome=tr.outcome,
+                    duration_seconds=tr.duration_seconds,
+                    longrepr=tr.longrepr,
+                )
+            )
 
         run.status = "completed"
         await db.commit()
