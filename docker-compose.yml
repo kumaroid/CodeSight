@@ -168,9 +168,45 @@ services:
       security_db:
         condition: service_healthy
 
+  # --- Architecture Service ---
+  arch_db:
+    image: postgres:16-alpine
+    container_name: codesight_arch_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${ARCH_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${ARCH_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${ARCH_DB_NAME:-arch_db}
+    ports:
+      - "5436:5432"
+    volumes:
+      - arch_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ARCH_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  arch_service:
+    build:
+      context: .
+      dockerfile: codesight_backend/arch_service/Dockerfile
+    container_name: codesight_arch_service
+    restart: unless-stopped
+    ports:
+      - "8006:8006"
+    env_file:
+      - .env
+    environment:
+      ARCH_DATABASE_URL: postgresql+asyncpg://${ARCH_DB_USER:-postgres}:${ARCH_DB_PASSWORD:-postgres}@arch_db:5432/${ARCH_DB_NAME:-arch_db}
+    depends_on:
+      arch_db:
+        condition: service_healthy
+
 volumes:
   redis_data:
   auth_db_data:
   analysis_db_data:
   security_db_data:
+  arch_db_data:
   projects_storage:
