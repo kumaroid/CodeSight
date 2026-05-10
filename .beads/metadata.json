@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "CodeSight",
+  "project_id": "b5dfab4a-6345-4352-b450-0fcef6fe8cf1"
+}
