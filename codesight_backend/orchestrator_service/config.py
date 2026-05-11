@@ -20,12 +20,14 @@ class Settings(BaseSettings):
     topic_security_start: str = "codesight.security.start"
     topic_arch_start: str = "codesight.arch.start"
     topic_testing_start: str = "codesight.testing.start"
+    topic_dast_start: str = "codesight.dast.start"
 
     # Topics – results (services → orchestrator)
     topic_analysis_result: str = "codesight.analysis.result"
     topic_security_result: str = "codesight.security.result"
     topic_arch_result: str = "codesight.arch.result"
     topic_testing_result: str = "codesight.testing.result"
+    topic_dast_result: str = "codesight.dast.result"
 
     # Topic for saga state updates (orchestrator → frontend/gateway)
     topic_saga_state: str = "codesight.saga.state"

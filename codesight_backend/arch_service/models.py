@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -46,7 +46,12 @@ class ComponentMetric(Base):
     __tablename__ = "component_metrics"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("arch_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     component: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Coupling: Ca (afferent) — сколько компонентов зависят от этого
@@ -69,7 +74,12 @@ class ArchRecommendation(Base):
     __tablename__ = "arch_recommendations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("arch_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     severity: Mapped[str] = mapped_column(
         Enum("critical", "warning", "info", name="arch_severity_enum"),
         nullable=False,

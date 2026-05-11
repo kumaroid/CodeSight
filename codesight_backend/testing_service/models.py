@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -64,7 +64,12 @@ class FileCoverage(Base):
     __tablename__ = "file_coverages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
     lines_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     lines_covered: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -83,7 +88,12 @@ class TestResult(Base):
     __tablename__ = "test_results"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     node_id: Mapped[str] = mapped_column(Text, nullable=False)  # pytest node id
     outcome: Mapped[str] = mapped_column(
         Enum("passed", "failed", "error", "skipped", name="test_outcome_enum"),

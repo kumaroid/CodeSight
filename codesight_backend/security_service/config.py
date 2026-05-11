@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8005
 
+    kafka_bootstrap_servers: str = pydantic.Field(
+        "localhost:9092", alias="KAFKA_BOOTSTRAP_SERVERS"
+    )
+    kafka_topic_command: str = "codesight.security.start"
+    kafka_topic_result: str = "codesight.security.result"
+    kafka_consumer_group: str = pydantic.Field(
+        "codesight-security-worker", alias="KAFKA_CONSUMER_GROUP"
+    )
+
     class Config:
         env_file = ".env.example"
         env_file_encoding = "utf-8"

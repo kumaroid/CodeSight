@@ -7,11 +7,13 @@
 | Сервис | Порт | БД | Описание |
 |---|---|---|---|
 | `auth_service` | 8001 | PostgreSQL (5433) | Аутентификация и JWT |
-| `loader_service` | 8002 | PostgreSQL (5434→?) | Загрузка и распаковка проектов |
+| `loader_service` | 8002 | PostgreSQL (5440) | Загрузка и распаковка проектов |
 | `analysis_service` | 8003 | PostgreSQL (5434) | Анализ кода |
 | `security_service` | 8005 | PostgreSQL (5435) | Проверка безопасности |
 | `arch_service` | 8006 | PostgreSQL (5436) | Анализ архитектуры |
-| `orchestrator_service` | 8007 | PostgreSQL | Orchestration через Kafka Saga |
+| `testing_service` | 8004 | PostgreSQL (5437) | pytest, coverage, полнота тестов |
+| `dast_service` | 8008 | PostgreSQL (5438) | Valgrind + динамическая проверка |
+| `orchestrator_service` | 8007 | PostgreSQL (5439) | Orchestration через Kafka Saga |
 
 Инфраструктура: **PostgreSQL 16**, **Apache Kafka** (Confluent 7.6.1) + ZooKeeper, **Redis 7.2**, **Kafka UI**.
 
@@ -137,7 +139,7 @@ docker compose -f docker-compose.infra.yml up -d
 | Kafka Broker | `codesight_kafka` | 9092 (внешний), 29092 (внутренний) |
 | Kafka UI | `codesight_kafka_ui` | 8080 |
 
-**Внутри Docker-сети** сервисы должны использовать адрес `kafka:29092`.  
+**Внутри Docker-сети** сервисы должны использовать адрес `kafka:29092`.
 **С хост-машины** брокер доступен по `localhost:9092`.
 
 Kafka UI доступен по адресу [http://localhost:8080](http://localhost:8080) — удобный веб-интерфейс для просмотра топиков и сообщений.
@@ -150,10 +152,12 @@ Kafka UI доступен по адресу [http://localhost:8080](http://local
 | `codesight.security.start` | Orchestrator → Security | Команда начала проверки безопасности |
 | `codesight.arch.start` | Orchestrator → Arch | Команда анализа архитектуры |
 | `codesight.testing.start` | Orchestrator → Testing | Команда запуска тестирования |
+| `codesight.dast.start` | Orchestrator → DAST | Команда динамического анализа (Valgrind) |
 | `codesight.analysis.result` | Analysis → Orchestrator | Результат анализа кода |
 | `codesight.security.result` | Security → Orchestrator | Результат проверки безопасности |
 | `codesight.arch.result` | Arch → Orchestrator | Результат анализа архитектуры |
 | `codesight.testing.result` | Testing → Orchestrator | Результат тестирования |
+| `codesight.dast.result` | DAST → Orchestrator | Результат динамического анализа |
 | `codesight.saga.state` | Orchestrator → Frontend | Обновление состояния саги |
 
 Топики создаются автоматически благодаря `KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"`. Если нужно создать их вручную:
@@ -172,9 +176,13 @@ docker exec -it codesight_kafka kafka-topics \
 | БД | Контейнер | Хост-порт | Имя БД |
 |---|---|---|---|
 | Auth | `codesight_auth_db` | 5433 | `auth_db` |
+| Loader | `codesight_loader_db` | 5440 | `project_db` |
 | Analysis | `codesight_analysis_db` | 5434 | `analysis_db` |
 | Security | `codesight_security_db` | 5435 | `security_db` |
 | Arch | `codesight_arch_db` | 5436 | `arch_db` |
+| Testing | `codesight_testing_db` | 5437 | `testing_db` |
+| DAST | `codesight_dast_db` | 5438 | `dast_db` |
+| Orchestrator | `codesight_orchestrator_db` | 5439 | `orchestrator_db` |
 
 Подключение с хост-машины (пример для auth_db):
 
@@ -331,6 +339,7 @@ codesight_backend/
 ├── orchestrator_service/  # Оркестратор Kafka Saga (порт 8007)
 ├── security_service/      # Сервис проверки безопасности (порт 8005)
 ├── testing_service/       # Сервис тестирования
+├── dast_service/          # Динамический анализ (Valgrind), порт 8008
 ├── archer/                # Вспомогательный модуль arch_service
 └── app.py                 # Точка входа общего приложения
 ```

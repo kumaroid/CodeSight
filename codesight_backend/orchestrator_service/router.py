@@ -30,7 +30,7 @@ async def create_saga(
     Создаёт новую сагу и запускает распределённый анализ проекта.
 
     - **project_id** — идентификатор проекта (уже загруженного через loader_service).
-    - **steps** — список видов анализа: `analysis`, `security`, `arch`, `testing`.
+    - **steps** — список видов анализа: `analysis`, `security`, `arch`, `testing`, `dast`.
       По умолчанию запускаются все четыре.
     """
     try:

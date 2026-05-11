@@ -21,6 +21,7 @@ STEP_COMMAND_TOPIC: dict[str, str] = {
     "security": settings.topic_security_start,
     "arch": settings.topic_arch_start,
     "testing": settings.topic_testing_start,
+    "dast": settings.topic_dast_start,
 }
 
 # Топики результатов, за которыми слушает оркестратор
@@ -29,6 +30,7 @@ RESULT_TOPICS = [
     settings.topic_security_result,
     settings.topic_arch_result,
     settings.topic_testing_result,
+    settings.topic_dast_result,
 ]
 
 # Маппинг топика результата → имя шага
@@ -37,6 +39,7 @@ TOPIC_TO_STEP: dict[str, str] = {
     settings.topic_security_result: "security",
     settings.topic_arch_result: "arch",
     settings.topic_testing_result: "testing",
+    settings.topic_dast_result: "dast",
 }
 
 

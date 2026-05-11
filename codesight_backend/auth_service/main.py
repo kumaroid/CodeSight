@@ -28,18 +28,22 @@ app = FastAPI(
 
 app.include_router(router)
 
-app.mount(
-    "/codesight_frontend",
-    StaticFiles(directory=str(FRONTEND_DIR), html=True),
-    name="codesight_frontend",
-)
+if FRONTEND_DIR.is_dir():
+    app.mount(
+        "/codesight_frontend",
+        StaticFiles(directory=str(FRONTEND_DIR), html=True),
+        name="codesight_frontend",
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
 def root() -> HTMLResponse:
-    # отдать homepage.html при заходе на /
-    html = (FRONTEND_DIR / "homepage.html").read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+    # В контейнере frontend может не монтироваться.
+    homepage = FRONTEND_DIR / "homepage.html"
+    if homepage.is_file():
+        html = homepage.read_text(encoding="utf-8")
+        return HTMLResponse(content=html)
+    return HTMLResponse(content="CodeSight Auth Service")
 
 
 @app.get("/health")

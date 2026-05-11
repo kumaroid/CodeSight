@@ -3,7 +3,7 @@ version: "3.3"
 services:
   # --- Infrastructure (from docker-compose.infra.yml, merged here for convenience) ---
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.1
+    image: docker.io/confluentinc/cp-zookeeper:7.6.1
     container_name: codesight_zookeeper
     restart: unless-stopped
     environment:
@@ -13,7 +13,7 @@ services:
       - "2181:2181"
 
   kafka:
-    image: confluentinc/cp-kafka:7.6.1
+    image: docker.io/confluentinc/cp-kafka:7.6.1
     container_name: codesight_kafka
     restart: unless-stopped
     depends_on:
@@ -34,7 +34,7 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    image: docker.io/provectuslabs/kafka-ui:latest
     container_name: codesight_kafka_ui
     restart: unless-stopped
     depends_on:
@@ -47,7 +47,7 @@ services:
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
 
   redis:
-    image: redis:7.2-alpine
+    image: docker.io/library/redis:7.2-alpine
     container_name: codesight_redis
     restart: unless-stopped
     ports:
@@ -58,7 +58,7 @@ services:
 
   # --- Auth Service ---
   auth_db:
-    image: postgres:16-alpine
+    image: docker.io/library/postgres:16-alpine
     container_name: codesight_auth_db
     restart: unless-stopped
     environment:
@@ -88,12 +88,11 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${AUTH_DB_USER:-postgres}:${AUTH_DB_PASSWORD:-postgres}@auth_db:5432/${AUTH_DB_NAME:-auth_db}
     depends_on:
-      auth_db:
-        condition: service_healthy
+      - auth_db
 
   # --- Analysis Service ---
   analysis_db:
-    image: postgres:16-alpine
+    image: docker.io/library/postgres:16-alpine
     container_name: codesight_analysis_db
     restart: unless-stopped
     environment:
@@ -113,7 +112,7 @@ services:
   analysis_service:
     build:
       context: .
-      dockerfile: codesight_backend/analysis_service/Dockerfile
+      dockerfile: codesight_backend/sast_service/Dockerfile
     container_name: codesight_analysis_service
     restart: unless-stopped
     ports:
@@ -122,17 +121,17 @@ services:
       - .env
     environment:
       ANALYSIS_DATABASE_URL: postgresql+asyncpg://${ANALYSIS_DB_USER:-postgres}:${ANALYSIS_DB_PASSWORD:-postgres}@analysis_db:5432/${ANALYSIS_DB_NAME:-analysis_db}
-      # Общий volume с loader_service, чтобы видеть распакованные проекты
       PROJECT_STORAGE_DIR: /tmp/codesight_projects
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     volumes:
       - projects_storage:/tmp/codesight_projects
     depends_on:
-      analysis_db:
-        condition: service_healthy
+      - kafka
+      - analysis_db
 
   # --- Security Service ---
   security_db:
-    image: postgres:16-alpine
+    image: docker.io/library/postgres:16-alpine
     container_name: codesight_security_db
     restart: unless-stopped
     environment:
@@ -162,15 +161,16 @@ services:
     environment:
       SECURITY_DATABASE_URL: postgresql+asyncpg://${SECURITY_DB_USER:-postgres}:${SECURITY_DB_PASSWORD:-postgres}@security_db:5432/${SECURITY_DB_NAME:-security_db}
       PROJECT_STORAGE_DIR: /tmp/codesight_projects
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     volumes:
       - projects_storage:/tmp/codesight_projects
     depends_on:
-      security_db:
-        condition: service_healthy
+      - kafka
+      - security_db
 
   # --- Architecture Service ---
   arch_db:
-    image: postgres:16-alpine
+    image: docker.io/library/postgres:16-alpine
     container_name: codesight_arch_db
     restart: unless-stopped
     environment:
@@ -199,9 +199,164 @@ services:
       - .env
     environment:
       ARCH_DATABASE_URL: postgresql+asyncpg://${ARCH_DB_USER:-postgres}:${ARCH_DB_PASSWORD:-postgres}@arch_db:5432/${ARCH_DB_NAME:-arch_db}
+      PROJECT_STORAGE_DIR: /tmp/codesight_projects
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - projects_storage:/tmp/codesight_projects
     depends_on:
-      arch_db:
-        condition: service_healthy
+      - kafka
+      - arch_db
+
+  # --- Loader (проекты на общий volume) ---
+  loader_db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: codesight_loader_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PROJECT_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${PROJECT_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${PROJECT_DB_NAME:-project_db}
+    ports:
+      - "5440:5432"
+    volumes:
+      - loader_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PROJECT_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  loader_service:
+    build:
+      context: .
+      dockerfile: codesight_backend/loader_service/Dockerfile
+    container_name: codesight_loader_service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    environment:
+      PROJECT_DATABASE_URL: postgresql+asyncpg://${PROJECT_DB_USER:-postgres}:${PROJECT_DB_PASSWORD:-postgres}@loader_db:5432/${PROJECT_DB_NAME:-project_db}
+      PROJECT_STORAGE_DIR: /tmp/codesight_projects
+    volumes:
+      - projects_storage:/tmp/codesight_projects
+    depends_on:
+      - loader_db
+
+  # --- Testing ---
+  testing_db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: codesight_testing_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${TESTING_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${TESTING_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${TESTING_DB_NAME:-testing_db}
+    ports:
+      - "5437:5432"
+    volumes:
+      - testing_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TESTING_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  testing_service:
+    build:
+      context: .
+      dockerfile: codesight_backend/testing_service/Dockerfile
+    container_name: codesight_testing_service
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env
+    environment:
+      TESTING_DATABASE_URL: postgresql+asyncpg://${TESTING_DB_USER:-postgres}:${TESTING_DB_PASSWORD:-postgres}@testing_db:5432/${TESTING_DB_NAME:-testing_db}
+      PROJECT_STORAGE_DIR: /tmp/codesight_projects
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - projects_storage:/tmp/codesight_projects
+    depends_on:
+      - kafka
+      - testing_db
+
+  # --- DAST (Valgrind) ---
+  dast_db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: codesight_dast_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DAST_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DAST_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DAST_DB_NAME:-dast_db}
+    ports:
+      - "5438:5432"
+    volumes:
+      - dast_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DAST_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dast_service:
+    build:
+      context: .
+      dockerfile: codesight_backend/dast_service/Dockerfile
+    container_name: codesight_dast_service
+    restart: unless-stopped
+    ports:
+      - "8008:8008"
+    env_file:
+      - .env
+    environment:
+      DAST_DATABASE_URL: postgresql+asyncpg://${DAST_DB_USER:-postgres}:${DAST_DB_PASSWORD:-postgres}@dast_db:5432/${DAST_DB_NAME:-dast_db}
+      PROJECT_STORAGE_DIR: /tmp/codesight_projects
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - projects_storage:/tmp/codesight_projects
+    depends_on:
+      - kafka
+      - dast_db
+
+  # --- Orchestrator ---
+  orchestrator_db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: codesight_orchestrator_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${ORCHESTRATOR_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${ORCHESTRATOR_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${ORCHESTRATOR_DB_NAME:-orchestrator_db}
+    ports:
+      - "5439:5432"
+    volumes:
+      - orchestrator_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ORCHESTRATOR_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  orchestrator_service:
+    build:
+      context: .
+      dockerfile: codesight_backend/orchestrator_service/Dockerfile
+    container_name: codesight_orchestrator_service
+    restart: unless-stopped
+    ports:
+      - "8007:8007"
+    env_file:
+      - .env
+    environment:
+      ORCHESTRATOR_DATABASE_URL: postgresql+asyncpg://${ORCHESTRATOR_DB_USER:-postgres}:${ORCHESTRATOR_DB_PASSWORD:-postgres}@orchestrator_db:5432/${ORCHESTRATOR_DB_NAME:-orchestrator_db}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      - kafka
+      - orchestrator_db
 
 volumes:
   redis_data:
@@ -209,4 +364,8 @@ volumes:
   analysis_db_data:
   security_db_data:
   arch_db_data:
+  loader_db_data:
+  testing_db_data:
+  dast_db_data:
+  orchestrator_db_data:
   projects_storage:

@@ -1,19 +1,19 @@
 FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
+    valgrind \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY codesight_backend/kafka_common ./codesight_backend/kafka_common
-COPY codesight_backend/security_service/requirements.txt ./req.txt
+COPY codesight_backend/dast_service/requirements.txt ./req.txt
 RUN pip install --no-cache-dir -r req.txt
 
-COPY codesight_backend/security_service ./codesight_backend/security_service
+COPY codesight_backend/dast_service ./codesight_backend/dast_service
 
 ENV PYTHONPATH=/app
 
-EXPOSE 8005
+EXPOSE 8008
 
-CMD ["uvicorn", "codesight_backend.security_service.main:app", "--host", "0.0.0.0", "--port", "8005"]
+CMD ["uvicorn", "codesight_backend.dast_service.main:app", "--host", "0.0.0.0", "--port", "8008"]

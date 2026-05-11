@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,3 +109,70 @@ async def delete_run(
         )
     await db.delete(run)
     await db.commit()
+
+
+def _load_first_plantuml(project_root: str) -> str | None:
+    """Ищет PlantUML: приоритетные имена, затем любой .puml в дереве."""
+    preferred = (
+        "diagram.puml",
+        "architecture.puml",
+        os.path.join("docs", "diagram.puml"),
+    )
+    for rel in preferred:
+        path = os.path.join(project_root, rel)
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                return fh.read()
+    for root, _, files in os.walk(project_root):
+        for name in files:
+            if name.endswith(".puml"):
+                path = os.path.join(root, name)
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    return fh.read()
+    return None
+
+
+async def run_arch_analysis_from_workspace(
+    project_id: str,
+) -> tuple[str, str, str | None]:
+    """
+    Запуск из Kafka: читает PlantUML с диска (тот же volume, что у loader).
+    Возвращает (run_id, status, error_message).
+    """
+    from .config import settings
+    from .database import AsyncSessionLocal
+
+    base = os.path.join(settings.project_storage_dir, project_id)
+    if not os.path.isdir(base):
+        return "", "failed", f"Директория проекта не найдена: {base}"
+
+    text = _load_first_plantuml(base)
+    async with AsyncSessionLocal() as db:
+        if not text:
+            run = ArchRun(
+                project_id=project_id,
+                status="completed",
+                error_message="Файл .puml не найден; шаг пропущен без метрик.",
+            )
+            db.add(run)
+            await db.commit()
+            await db.refresh(run)
+            return run.id, "completed", None
+        try:
+            run, _summary = await start_arch_analysis(project_id, text, db)
+        except HTTPException as exc:
+            detail = str(exc.detail)
+            async with AsyncSessionLocal() as db2:
+                r = await db2.execute(
+                    select(ArchRun)
+                    .where(ArchRun.project_id == project_id)
+                    .order_by(ArchRun.created_at.desc())
+                    .limit(1)
+                )
+                last = r.scalar_one_or_none()
+            rid = last.id if last else ""
+            return rid, "failed", detail
+        except Exception as exc:  # noqa: BLE001
+            return "", "failed", str(exc)
+        else:
+            return run.id, run.status, run.error_message

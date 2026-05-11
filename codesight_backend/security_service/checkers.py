@@ -291,7 +291,7 @@ REGEX_RULES: list[RegexRule] = [
     # A10 — SSRF via requests with user input
     RegexRule(
         pattern=re.compile(
-            r"requests\.(get|post|put|delete|patch)\s*\(\s*(url|request\.",
+            r"requests\.(get|post|put|delete|patch)\s*\(\s*(url|request\.)",
             re.IGNORECASE,
         ),
         owasp_category="A10",

@@ -11,8 +11,21 @@ class Settings(BaseSettings):
         "sqlite+aiosqlite:///./arch.db", alias="ARCH_DATABASE_URL"
     )
 
+    project_storage_dir: str = pydantic.Field(
+        "/tmp/codesight_projects", alias="PROJECT_STORAGE_DIR"
+    )
+
     app_host: str = "0.0.0.0"
     app_port: int = 8006
+
+    kafka_bootstrap_servers: str = pydantic.Field(
+        "localhost:9092", alias="KAFKA_BOOTSTRAP_SERVERS"
+    )
+    kafka_topic_command: str = "codesight.arch.start"
+    kafka_topic_result: str = "codesight.arch.result"
+    kafka_consumer_group: str = pydantic.Field(
+        "codesight-arch-worker", alias="KAFKA_CONSUMER_GROUP"
+    )
 
     class Config:
         env_file = ".env.example"

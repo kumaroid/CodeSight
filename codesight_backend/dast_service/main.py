@@ -5,7 +5,6 @@ from fastapi import FastAPI
 
 from .database import Base, engine
 from .kafka_handlers import start_kafka, stop_kafka
-from .router import router
 
 
 @asynccontextmanager
@@ -18,15 +17,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="CodeSight Analysis Service",
+    title="CodeSight DAST Service",
     version="1.0.0",
-    description="Сервис статического анализа: ruff, bandit, mypy",
+    description="Динамический анализ: Valgrind + Python (pytest --collect-only или smoke)",
     lifespan=lifespan,
 )
-
-app.include_router(router)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "sast"}
+    return {"status": "ok", "service": "dast"}

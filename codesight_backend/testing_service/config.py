@@ -18,6 +18,15 @@ class Settings(BaseSettings):
     # Таймаут выполнения тестов (секунды)
     test_timeout: int = pydantic.Field(120, alias="TESTING_TIMEOUT")
 
+    kafka_bootstrap_servers: str = pydantic.Field(
+        "localhost:9092", alias="KAFKA_BOOTSTRAP_SERVERS"
+    )
+    kafka_topic_command: str = "codesight.testing.start"
+    kafka_topic_result: str = "codesight.testing.result"
+    kafka_consumer_group: str = pydantic.Field(
+        "codesight-testing-worker", alias="KAFKA_CONSUMER_GROUP"
+    )
+
     app_host: str = "0.0.0.0"
     app_port: int = 8004
 

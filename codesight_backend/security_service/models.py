@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -43,7 +43,12 @@ class SecurityFinding(Base):
     __tablename__ = "security_findings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    scan_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    scan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("security_scans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # OWASP категория (A01..A10)
     owasp_category: Mapped[str] = mapped_column(String(10), nullable=False, index=True)

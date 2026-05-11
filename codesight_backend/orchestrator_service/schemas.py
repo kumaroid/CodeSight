@@ -11,14 +11,14 @@ from pydantic import BaseModel, Field
 # API — запрос на запуск саги
 # ---------------------------------------------------------------------------
 
-ALL_STEPS = {"analysis", "security", "arch", "testing"}
+ALL_STEPS = {"analysis", "security", "arch", "testing", "dast"}
 
 
 class StartAnalysisRequest(BaseModel):
     project_id: str
     steps: list[str] = Field(
         default_factory=lambda: list(ALL_STEPS),
-        description="Виды анализа: analysis, security, arch, testing",
+        description="Виды анализа: analysis, security, arch, testing, dast",
     )
 
     def validated_steps(self) -> list[str]:
@@ -63,7 +63,7 @@ class AnalysisCommandMessage(BaseModel):
 
     saga_id: str
     project_id: str
-    step: str  # analysis | security | arch | testing
+    step: str  # analysis | security | arch | testing | dast
 
 
 # ---------------------------------------------------------------------------
