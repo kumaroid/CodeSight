@@ -27,26 +27,26 @@ Frontend  ◄──────────────────────�
 ┌─────────────────────────────────────────────────────────────────┐
 │                  Платформа анализа качества кода                │
 │                                                                 │
-│  ┌──────────────┐     команды/события     ┌─────────────────┐  │
-│  │  Оркестратор │ ──────────────────────► │      Kafka      │  │
-│  │     Saga     │ ◄────────────────────── │                 │  │
-│  └──────┬───────┘                         └────────┬────────┘  │
+│  ┌──────────────┐     команды/события     ┌─────────────────┐   │
+│  │  Оркестратор │ ──────────────────────► │      Kafka      │   │
+│  │     Saga     │ ◄────────────────────── │                 │   │
+│  └──────┬───────┘                         └────────┬────────┘   │
 │         │                                          │ результаты │
-│  рекоменд.  сводный                      ┌─────────┴─────────┐ │
-│  контекст                                │  Микросервисы     │ │
-│         │                                │  анализа          │ │
-│  ┌──────▼───────┐     ┌──────────────────┼───────────────┐   │ │
-│  │  AI-агент    │     │ Анализ арх.      │ Анализ        │   │ │
-│  │  рекоменд.   │     │ связности        │ безопасности  │   │ │
-│  └──────────────┘     ├──────────────────┼───────────────┤   │ │
-│                       │ Динамический     │ Статический   │   │ │
-│                       │ анализ           │ анализ        │   │ │
-│                       └──────────────────┴───────────────┘   │ │
-│                                                               │ │
-│  ┌───────────────┐   ┌─────────────────┐   ┌─────────────┐  │ │
-│  │  PostgreSQL   │   │      Redis      │   │    Ceph     │  │ │
-│  │  (основная БД)│   │    (кэш/очереди)│   │  (файлы)   │  │ │
-│  └───────────────┘   └─────────────────┘   └─────────────┘  │ │
+│  рекоменд.  сводный                      ┌─────────┴─────────┐  │
+│  контекст                                │  Микросервисы     │  │
+│         │                                │  анализа          │  │
+│  ┌──────▼───────┐     ┌──────────────────┼───────────────┐   │  │
+│  │  AI-агент    │     │ Анализ арх.      │ Анализ        │   │  │
+│  │  рекоменд.   │     │ связности        │ безопасности  │   │  │
+│  └──────────────┘     ├──────────────────┼───────────────┤   │  │
+│                       │ Динамический     │ Статический   │   │  │
+│                       │ анализ           │ анализ        │   │  │
+│                       └──────────────────┴───────────────┘   │  │
+│                                                              │  │
+│  ┌───────────────┐   ┌─────────────────┐   ┌─────────────┐   │  │
+│  │  PostgreSQL   │   │      Redis      │   │    Ceph     │   │  │
+│  │  (основная БД)│   │    (кэш/очереди)│   │  (файлы)    │   │  │
+│  └───────────────┘   └─────────────────┘   └─────────────┘   │  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,14 +57,16 @@ Frontend  ◄──────────────────────�
 | **Frontend** | SPA-интерфейс: загрузка проекта, просмотр отчётов, статус анализа |
 | **Оркестратор Saga** | Управляет жизненным циклом анализа, координирует микросервисы через Kafka |
 | **Kafka** | Шина событий: команды от оркестратора → микросервисы → результаты обратно |
-| **Статический анализ** | Ruff, Radon, mypy, Bandit — метрики качества и стиля кода |
-| **Анализ безопасности** | Bandit, Semgrep; отчёты по OWASP Top 10, CWE Top 25, OWASP ASVS |
+| **Loader Service** | Загрузка проекта (ZIP или URL Git-репозитория) в общее хранилище для анализа |
+| **Статический анализ** | Ruff, mypy, Bandit — метрики качества и стиля кода |
+| **Анализ безопасности** | Bandit + regex + pip-audit; отчёты по OWASP/CWE |
 | **Анализ архитектурной связности** | Граф зависимостей модулей, метрика связности на основе [arch-blueprint](https://github.com/nkhitrov/arch-blueprint) |
-| **Динамический анализ** | Покрытие тестами, обнаружение утечек ресурсов |
+| **Тестирование и покрытие** | `pytest`, coverage и метрики полноты тестирования |
+| **DAST (динамический анализ)** | Valgrind + Python (`pytest --collect-only`/smoke) |
 | **AI-агент рекомендаций** | LLM-агент (LangGraph + GigaChat): синтезирует сводный контекст и формирует рекомендации |
 | **PostgreSQL** | Хранение проектов, результатов анализа, истории метрик |
 | **Redis** | Кэш промежуточных результатов, очереди задач |
-| **Ceph** | Объектное хранилище исходных файлов проектов |
+| **projects_storage** | Общий volume с исходниками для всех сервисов-анализаторов |
 
 ---
 
@@ -76,17 +78,23 @@ Frontend  ◄──────────────────────�
 
 ### Модуль статического анализа
 - **Ruff** — линтинг и форматирование Python-кода
-- **Radon** — метрики Холстеда, цикломатическая сложность, индекс поддерживаемости
 - **mypy** — статическая типизация
 - Code coverage — процент кода, покрытого тестами
 
 ### Модуль безопасности
-Формирует три отчёта по международным стандартам:
-- **OWASP Top 10** — наиболее критичные уязвимости веб-приложений
-- **CWE Top 25** — наиболее опасные программные ошибки
-- **OWASP ASVS** — стандарт верификации безопасности приложений
+Формирует отчёты по категориям OWASP/CWE и собирает находки из нескольких источников:
+- **Bandit** (AST-based проверка Python-кода)
+- **Regex-паттерны** для быстрых эвристик
+- **pip-audit** для уязвимостей зависимостей
 
-Инструменты: **Bandit**, **Semgrep**.
+### Модуль тестирования
+- Запуск `pytest` и сбор метрик покрытия (`coverage_percent`, `branch_coverage_percent`)
+- Анализ полноты тестирования (какие файлы не покрыты тестами)
+
+### DAST-модуль
+- Запуск Valgrind поверх Python runtime-проверок
+- Базовый сценарий: `pytest --collect-only`, fallback на smoke-команду
+- Отдельный шаг `dast` в оркестрации Saga
 
 ### Модуль архитектурной связности
 Ключевая авторская метрика платформы. Строит граф зависимостей между модулями проекта, вычисляет метрику связности и определяет «горячие точки» — модули с чрезмерным числом входящих/исходящих зависимостей. AI-агент предлагает конкретные рефакторинги для снижения связности.
@@ -116,49 +124,64 @@ Frontend  ◄──────────────────────�
 ## Быстрый старт
 
 ### Требования
-- Docker и Docker Compose
+- Docker + Docker Compose **или** Podman + podman-compose
 - Python 3.12+ (для локальной разработки)
 
-### Запуск инфраструктуры
-
-```bash
-# Поднять инфраструктурные сервисы (PostgreSQL, Redis, Kafka, Ceph)
-docker compose -f docker-compose.infra.yml up -d
-```
-
-### Запуск сервисов
-
-```bash
-# Все сервисы
-docker compose up -d
-
-# Или отдельно для разработки
-uvicorn codesight_backend.auth_service.main:app --port 8001 --reload
-uvicorn codesight_backend.project_service.main:app --port 8002 --reload
-```
-
-### Переменные окружения
-
-Скопируйте `.env.example` в `.env` и заполните значения:
+### 1) Подготовка окружения
 
 ```bash
 cp .env.example .env
 ```
 
-Ключевые переменные:
+### 2) Чистый перезапуск (рекомендуется перед первым стартом)
 
-```env
-# Auth Service
-JWT_SECRET_KEY=your_secret_key
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/auth_db
+```bash
+# Docker Compose v2
+docker compose down
+docker compose up --build -d
 
-# Project Service
-PROJECT_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/project_db
-PROJECT_STORAGE_DIR=/tmp/codesight_projects
-PROJECT_MAX_ZIP_SIZE=52428800
+# или Docker Compose v1
+docker-compose down
+docker-compose up --build -d
 
-# AI Agent
-GIGACHAT_CREDENTIALS=your_gigachat_key
+# или Podman
+podman-compose down
+podman-compose up --build -d
+```
+
+### 3) Проверка health-check
+
+```bash
+for p in 8001 8002 8003 8004 8005 8006 8007 8008; do
+  echo -n "$p "; curl -s "http://localhost:$p/health"; echo
+done
+```
+
+### 4) Загрузка проекта по ссылке на репозиторий
+
+```bash
+curl -s -X POST http://localhost:8002/projects/upload/repo \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/<owner>/<repo>.git",
+    "name": "my-project"
+  }'
+```
+
+Из ответа возьмите `id` — это `project_id`.
+
+### 5) Запуск полного анализа (Saga)
+
+```bash
+curl -s -X POST http://localhost:8007/orchestrator/sagas \
+  -H "Content-Type: application/json" \
+  -d '{"project_id":"<PROJECT_ID>","steps":["analysis","security","arch","testing","dast"]}'
+```
+
+Из ответа возьмите `saga_id` и опрашивайте:
+
+```bash
+curl -s http://localhost:8007/orchestrator/sagas/<SAGA_ID>
 ```
 
 ---
@@ -170,9 +193,15 @@ GIGACHAT_CREDENTIALS=your_gigachat_key
 | Сервис | Swagger UI |
 |---|---|
 | Auth Service | http://localhost:8001/docs |
-| Project Service | http://localhost:8002/docs |
+| Loader Service | http://localhost:8002/docs |
+| Analysis Service | http://localhost:8003/docs |
+| Testing Service | http://localhost:8004/docs |
+| Security Service | http://localhost:8005/docs |
+| Arch Service | http://localhost:8006/docs |
+| Orchestrator Service | http://localhost:8007/docs |
+| DAST Service | http://localhost:8008/docs |
 
-### Основные эндпоинты Project Service
+### Основные эндпоинты Loader Service
 
 ```
 POST   /projects/upload/zip      — загрузить проект из ZIP-архива
@@ -183,6 +212,15 @@ DELETE /projects/{id}            — удалить проект
 GET    /health                   — health-check
 ```
 
+### Основные эндпоинты Orchestrator Service
+
+```
+POST   /orchestrator/sagas           — запустить Saga
+GET    /orchestrator/sagas/{saga_id} — получить состояние Saga
+GET    /orchestrator/sagas           — список саг по project_id
+GET    /health                       — health-check
+```
+
 ---
 
 ## Структура репозитория
@@ -190,26 +228,16 @@ GET    /health                   — health-check
 ```
 CodeSight/
 ├── codesight_backend/
-│   ├── app.py                   # Корневое FastAPI-приложение
 │   ├── auth_service/            # Аутентификация и авторизация (порт 8001)
-│   │   ├── main.py
-│   │   ├── router.py
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── service.py
-│   │   ├── security.py
-│   │   ├── database.py
-│   │   ├── config.py
-│   │   └── Dockerfile
-│   └── project_service/         # Загрузка проектов для анализа (порт 8002)
-│       ├── main.py
-│       ├── router.py
-│       ├── models.py
-│       ├── schemas.py
-│       ├── service.py
-│       ├── database.py
-│       ├── config.py
-│       └── Dockerfile
+│   ├── loader_service/          # Загрузка проектов (порт 8002)
+│   ├── sast_service/            # Статический анализ (порт 8003)
+│   ├── testing_service/         # Тестирование и покрытие (порт 8004)
+│   ├── security_service/        # Безопасность (порт 8005)
+│   ├── arch_service/            # Архитектурный анализ (порт 8006)
+│   ├── orchestrator_service/    # Saga-оркестратор (порт 8007)
+│   ├── dast_service/            # Dynamic analysis / Valgrind (порт 8008)
+│   ├── archer/                  # AI-рекомендации
+│   └── kafka_common/            # Общие Kafka-утилиты
 ├── codesight_frontend/          # Фронтенд
 ├── docker-compose.yml
 ├── docker-compose.infra.yml
