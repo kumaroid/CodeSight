@@ -1,12 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BarChart2, FolderOpen, LogOut, Play, Settings } from 'lucide-react';
+import { FolderOpen, LogOut, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
   { to: '/projects', icon: FolderOpen, label: 'Проекты' },
-  { to: '/reports', icon: BarChart2, label: 'Отчёты' },
-  { to: '/runs', icon: Play, label: 'Запуски анализа' },
-  { to: '/settings', icon: Settings, label: 'Настройки' },
+  { to: '/projects/add', icon: Plus, label: 'Новый проект' },
 ];
 
 export default function Sidebar() {
@@ -32,7 +30,12 @@ export default function Sidebar() {
 
       <nav className="nav">
         {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/projects'}
+            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+          >
             <span className="nav-icon"><Icon size={18} /></span>
             <span>{label}</span>
           </NavLink>
@@ -44,12 +47,20 @@ export default function Sidebar() {
       <div className="sidebar-user">
         <div className="user-avatar">{initials}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div
+            className="user-name"
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
             {user?.email || 'Пользователь'}
           </div>
           <div className="user-email">Аналитик</div>
         </div>
-        <button className="btn btn-ghost" style={{ padding: '6px', borderRadius: '10px' }} onClick={handleLogout} title="Выйти">
+        <button
+          className="btn btn-ghost"
+          style={{ padding: '6px', borderRadius: '10px' }}
+          onClick={handleLogout}
+          title="Выйти"
+        >
           <LogOut size={16} />
         </button>
       </div>

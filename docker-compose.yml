@@ -201,11 +201,25 @@ services:
       ARCH_DATABASE_URL: postgresql+asyncpg://${ARCH_DB_USER:-postgres}:${ARCH_DB_PASSWORD:-postgres}@arch_db:5432/${ARCH_DB_NAME:-arch_db}
       PROJECT_STORAGE_DIR: /tmp/codesight_projects
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ARCHER_URL: http://archer:8009
     volumes:
       - projects_storage:/tmp/codesight_projects
     depends_on:
       - kafka
       - arch_db
+      - archer
+
+  # --- Archer (AI architecture advisor) ---
+  archer:
+    build:
+      context: .
+      dockerfile: codesight_backend/archer/Dockerfile
+    container_name: codesight_archer
+    restart: unless-stopped
+    ports:
+      - "8009:8009"
+    env_file:
+      - .env
 
   # --- Loader (проекты на общий volume) ---
   loader_db:
@@ -357,6 +371,34 @@ services:
     depends_on:
       - kafka
       - orchestrator_db
+
+  # --- Frontend (React + nginx) ---
+  frontend:
+    build:
+      context: ./codesight_frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_AUTH_URL: ${REACT_APP_AUTH_URL:-http://localhost:8001}
+        REACT_APP_LOADER_URL: ${REACT_APP_LOADER_URL:-http://localhost:8002}
+        REACT_APP_SAST_URL: ${REACT_APP_SAST_URL:-http://localhost:8003}
+        REACT_APP_TESTING_URL: ${REACT_APP_TESTING_URL:-http://localhost:8004}
+        REACT_APP_SECURITY_URL: ${REACT_APP_SECURITY_URL:-http://localhost:8005}
+        REACT_APP_ARCH_URL: ${REACT_APP_ARCH_URL:-http://localhost:8006}
+        REACT_APP_ORCHESTRATOR_URL: ${REACT_APP_ORCHESTRATOR_URL:-http://localhost:8007}
+        REACT_APP_DAST_URL: ${REACT_APP_DAST_URL:-http://localhost:8008}
+    container_name: codesight_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - auth_service
+      - loader_service
+      - analysis_service
+      - security_service
+      - arch_service
+      - testing_service
+      - dast_service
+      - orchestrator_service
 
 volumes:
   redis_data:

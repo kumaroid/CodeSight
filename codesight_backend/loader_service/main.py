@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine
 from .router import router
@@ -19,6 +20,14 @@ app = FastAPI(
     version="1.0.0",
     description="Сервис загрузки проектов: ZIP-архив или URL Git-репозитория",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(router)

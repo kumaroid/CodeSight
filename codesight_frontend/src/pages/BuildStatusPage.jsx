@@ -1,75 +1,107 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle, Loader, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { CheckCircle, Loader, RefreshCw, XCircle } from 'lucide-react';
 import { getProject } from '../api/projects';
-
-const STAGES = [
-  { id: 'upload', label: 'Загрузка', desc: 'Файлы проекта' },
-  { id: 'static', label: 'Статика', desc: 'Ruff, Radon, mypy' },
-  { id: 'security', label: 'Безопасность', desc: 'Bandit, Semgrep' },
-  { id: 'arch', label: 'Архитектура', desc: 'Граф зависимостей' },
-  { id: 'ai', label: 'AI-анализ', desc: 'GigaChat агент' },
-];
-
-const SAMPLE_LOGS = [
-  { type: 'info', text: '[10:32:01] INFO Starting analysis pipeline...' },
-  { type: 'success', text: '[10:32:03] OK Project files extracted successfully' },
-  { type: 'info', text: '[10:32:05] INFO Running Ruff linter...' },
-  { type: 'success', text: '[10:32:08] OK Ruff completed: 3 issues found' },
-  { type: 'warning', text: '[10:32:13] WARN High complexity in auth/service.py (CC=18)' },
-  { type: 'info', text: '[10:32:14] INFO Running Bandit security scan...' },
-  { type: 'error', text: '[10:32:19] ERR Bandit: 1 HIGH severity issue detected' },
-  { type: 'success', text: '[10:32:45] OK AI analysis complete' },
-];
-
-const LOG_CLASS = {
-  success: 'log-line-success',
-  warning: 'log-line-warning',
-  error: 'log-line-error',
-  info: 'log-line-info',
-};
+import { createSaga, getSaga, listSagasForProject } from '../api/orchestrator';
+import {
+  PROJECT_STATUS,
+  SAGA_STATUS,
+  STEP_LABEL,
+  STEP_STATUS,
+  STEPS_ORDER,
+  sagaProgress,
+} from '../utils/status';
 
 export default function BuildStatusPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [project, setProject] = useState(null);
-  const [logLines, setLogLines] = useState([]);
-  const logRef = useRef(null);
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const initialSagaId = params.get('saga');
 
-  useEffect(() => {
-    getProject(id).then((response) => setProject(response.data)).catch(() => {});
-    const interval = setInterval(() => {
-      getProject(id).then((response) => setProject(response.data)).catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
+  const [project, setProject] = useState(null);
+  const [saga, setSaga] = useState(null);
+  const [sagaId, setSagaId] = useState(initialSagaId || null);
+  const [loadingProject, setLoadingProject] = useState(true);
+  const [error, setError] = useState('');
+  const [starting, setStarting] = useState(false);
+
+  const refreshProject = useCallback(async () => {
+    try {
+      const data = await getProject(id);
+      setProject(data);
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Не удалось загрузить проект');
+    } finally {
+      setLoadingProject(false);
+    }
   }, [id]);
 
-  useEffect(() => {
-    let index = 0;
-    const timer = setInterval(() => {
-      if (index < SAMPLE_LOGS.length) {
-        setLogLines((current) => [...current, SAMPLE_LOGS[index]]);
-        index += 1;
-      } else {
-        clearInterval(timer);
+  const refreshSaga = useCallback(async () => {
+    if (!sagaId) {
+      try {
+        const sagas = await listSagasForProject(id);
+        if (sagas[0]) {
+          setSagaId(sagas[0].saga_id);
+          setSaga(sagas[0]);
+        }
+      } catch (e) {
+        // ignore
       }
-    }, 800);
-    return () => clearInterval(timer);
-  }, []);
+      return;
+    }
+    try {
+      const data = await getSaga(sagaId);
+      setSaga(data);
+    } catch (e) {
+      // saga might be missing; ignore for polling
+    }
+  }, [id, sagaId]);
 
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [logLines]);
+    refreshProject();
+  }, [refreshProject]);
 
-  const status = project?.status || 'running';
-  const isRunning = status === 'running' || status === 'pending';
-  const progress = status === 'completed' ? 100 : status === 'failed' ? 60 : 68;
+  useEffect(() => {
+    refreshSaga();
+    const interval = setInterval(refreshSaga, 3500);
+    return () => clearInterval(interval);
+  }, [refreshSaga]);
 
-  const stageClass = (index) => {
-    if (status === 'completed') return 'stage-success';
-    if (status === 'failed') return index < 3 ? 'stage-success' : index === 3 ? 'stage-error' : 'stage-pending';
-    return index < 2 ? 'stage-success' : index === 2 ? 'stage-running' : 'stage-pending';
+  const handleStart = async () => {
+    setStarting(true);
+    setError('');
+    try {
+      const data = await createSaga(id);
+      setSagaId(data.saga_id);
+      setSaga(data);
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Не удалось запустить анализ');
+    } finally {
+      setStarting(false);
+    }
   };
+
+  const progress = useMemo(() => sagaProgress(saga), [saga]);
+  const sagaMeta = saga
+    ? SAGA_STATUS[saga.status] || { label: saga.status, cls: 'pill-neutral' }
+    : null;
+
+  if (loadingProject) {
+    return (
+      <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', color: 'var(--muted)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw size={32} style={{ margin: '0 auto 12px' }} />
+          <p>Загрузка проекта...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const projectMeta = project ? PROJECT_STATUS[project.status] : null;
+  const stepsToShow = saga
+    ? Object.keys(saga.steps_status || {})
+    : STEPS_ORDER;
 
   return (
     <div className="container">
@@ -77,12 +109,33 @@ export default function BuildStatusPage() {
         <div>
           <p className="eyebrow">Статус анализа</p>
           <h1>{project?.name || `Проект #${id || '—'}`}</h1>
-          <p className="description">Следите за ходом выполнения анализа в реальном времени. После завершения вы увидите полный отчёт с результатами и рекомендациями.</p>
+          <p className="description">
+            Платформа последовательно проходит шаги анализа через Saga-оркестратор. После завершения откроется полный отчёт.
+          </p>
+          {project?.repo_url && (
+            <p style={{ marginTop: 8, color: 'var(--muted)', fontSize: 13 }}>{project.repo_url}</p>
+          )}
         </div>
         <div className="hero-side">
           <div className="meta-box">
-            <strong>Статус</strong>
-            <span><span className={`pill ${status === 'completed' ? 'pill-success' : status === 'failed' ? 'pill-error' : 'pill-running'}`}>{status === 'completed' ? 'Завершён' : status === 'failed' ? 'Ошибка' : 'Выполняется'}</span></span>
+            <strong>Проект</strong>
+            <span>
+              {projectMeta ? (
+                <span className={`pill ${projectMeta.cls}`}>{projectMeta.label}</span>
+              ) : (
+                '—'
+              )}
+            </span>
+          </div>
+          <div className="meta-box">
+            <strong>Saga</strong>
+            <span>
+              {sagaMeta ? (
+                <span className={`pill ${sagaMeta.cls}`}>{sagaMeta.label}</span>
+              ) : (
+                <span className="pill pill-neutral">Не запущена</span>
+              )}
+            </span>
           </div>
           <div className="meta-box">
             <strong>Прогресс</strong>
@@ -91,44 +144,81 @@ export default function BuildStatusPage() {
         </div>
       </section>
 
+      {error && (
+        <div className="card" style={{ borderColor: 'rgba(161,53,68,0.2)', background: 'var(--error-bg)', color: 'var(--error-text)' }}>
+          {error}
+        </div>
+      )}
+
       <div className="card">
         <div className="section-header">
           <div>
             <h2>Прогресс выполнения</h2>
-            <p>Все шаги анализа проекта</p>
+            <p>Шаги распределённого анализа</p>
           </div>
-          {isRunning && <span className="pill pill-running"><Loader size={12} style={{ marginRight: 4 }} />Выполняется</span>}
-          {status === 'completed' && <span className="pill pill-success"><CheckCircle size={12} style={{ marginRight: 4 }} />Готово</span>}
-          {status === 'failed' && <span className="pill pill-error"><XCircle size={12} style={{ marginRight: 4 }} />Ошибка</span>}
+          {saga?.status === 'running' && (
+            <span className="pill pill-running"><Loader size={12} style={{ marginRight: 4 }} />Выполняется</span>
+          )}
+          {saga?.status === 'completed' && (
+            <span className="pill pill-success"><CheckCircle size={12} style={{ marginRight: 4 }} />Готово</span>
+          )}
+          {saga?.status === 'failed' && (
+            <span className="pill pill-error"><XCircle size={12} style={{ marginRight: 4 }} />Ошибка</span>
+          )}
+          {!saga && (
+            <button
+              className="btn btn-primary"
+              onClick={handleStart}
+              disabled={starting || project?.status !== 'ready'}
+            >
+              {starting ? 'Запускаем...' : 'Запустить анализ'}
+            </button>
+          )}
         </div>
+
         <div className="bar-wrap">
-          <div className="bar-top"><span>Общий прогресс</span><span>{progress}%</span></div>
+          <div className="bar-top">
+            <span>Общий прогресс</span>
+            <span>{progress}%</span>
+          </div>
           <div className="bar"><span className="bar-fill" style={{ width: `${progress}%` }} /></div>
         </div>
+
         <div className="stages">
-          {STAGES.map((stage, index) => (
-            <div key={stage.id} className={`stage ${stageClass(index)}`}>
-              <strong>{stage.label}</strong>
-              <span>{stage.desc}</span>
-            </div>
-          ))}
+          {stepsToShow.map((step) => {
+            const stepStatus = (saga?.steps_status || {})[step] || 'pending';
+            const meta = STEP_STATUS[stepStatus] || STEP_STATUS.pending;
+            const label = STEP_LABEL[step] || { label: step, desc: '' };
+            return (
+              <div key={step} className={`stage ${meta.stageCls}`}>
+                <strong>{label.label}</strong>
+                <span>{label.desc}</span>
+                <span style={{ display: 'block', marginTop: 8 }}>
+                  <span className={`pill ${meta.cls}`}>{meta.label}</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
+
+        {saga?.error_message && (
+          <div style={{
+            marginTop: 16, padding: '12px 14px', borderRadius: 12,
+            background: 'var(--error-bg)', color: 'var(--error-text)', fontSize: 13,
+          }}>
+            {saga.error_message}
+          </div>
+        )}
       </div>
 
-      <div className="log-card">
-        <div className="log-top">
-          <h3 style={{ margin: 0 }}>Логи выполнения</h3>
-          <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>Поток событий анализа</p>
-        </div>
-        <div className="log-body" ref={logRef}>
-          {logLines.map((line, index) => <div key={index} className={LOG_CLASS[line.type]}>{line.text}</div>)}
-          {isRunning && <div style={{ color: 'var(--primary)' }}>█</div>}
-        </div>
-      </div>
-
-      {status === 'completed' && (
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <button className="btn btn-primary" onClick={() => navigate(`/projects/${id}/report`)}>Смотреть результаты →</button>
+      {saga?.status === 'completed' && (
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button className="btn btn-primary" onClick={() => navigate(`/projects/${id}/report?saga=${saga.saga_id}`)}>
+            Смотреть отчёт →
+          </button>
+          <button className="btn btn-secondary" onClick={() => navigate(`/projects/${id}`)}>
+            К проекту
+          </button>
         </div>
       )}
     </div>

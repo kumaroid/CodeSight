@@ -1,79 +1,172 @@
-import { useParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
+import { useProjectAnalysis } from '../hooks/useProjectAnalysis';
+
+const SEVERITY_PILL = {
+  critical: 'pill-error',
+  warning: 'pill-warning',
+  info: 'pill-primary',
+};
+
+const couplingLabel = (score) => {
+  if (score >= 0.7) return { label: 'Risk', cls: 'pill-error' };
+  if (score >= 0.4) return { label: 'Review', cls: 'pill-warning' };
+  return { label: 'Stable', cls: 'pill-success' };
+};
 
 export default function ArchPage() {
   const { id } = useParams();
+  const location = useLocation();
+  const sagaId = new URLSearchParams(location.search).get('saga');
+  const { project, results, loading } = useProjectAnalysis(id, { sagaId });
+  const run = results.arch;
+
+  const metrics = run?.metrics || [];
+  const recommendations = run?.recommendations || [];
+  const summary = run?.summary || null;
+
+  const hotspots = useMemo(
+    () => [...metrics].sort((a, b) => b.coupling_score - a.coupling_score).slice(0, 6),
+    [metrics],
+  );
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', color: 'var(--muted)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw size={32} style={{ margin: '0 auto 12px' }} />
+          <p>Загружаем архитектурный отчёт...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!run) {
+    return (
+      <div className="container">
+        <section className="hero">
+          <div>
+            <div className="eyebrow">Архитектурный анализ</div>
+            <h1>{project?.name || `Проект ${id}`}</h1>
+            <p className="description">
+              Архитектурный анализ требует PlantUML-диаграммы (`*.puml`) внутри проекта. Добавьте её в репозиторий и повторите анализ.
+            </p>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="container">
       <section className="hero">
         <div>
           <div className="eyebrow">Архитектурный анализ</div>
-          <h1>Связность и hotspot-модули проекта #{id || 1843}</h1>
-          <p className="description">Экран фокусируется на графе зависимостей и модулях, которые сильнее всего влияют на архитектурную устойчивость проекта.</p>
+          <h1>{project?.name || `Проект ${id}`}</h1>
+          <p className="description">
+            Метрики связности (Coupling) и когезии (Cohesion) по PlantUML-диаграмме.
+          </p>
         </div>
         <div className="hero-side">
-          <div className="meta-box"><strong>Средний coupling</strong><span>0.68</span></div>
-          <div className="meta-box"><strong>Hotspot-модулей</strong><span>3</span></div>
+          <div className="meta-box">
+            <strong>Средний coupling</strong>
+            <span>{typeof summary?.avg_coupling === 'number' ? summary.avg_coupling.toFixed(2) : '—'}</span>
+          </div>
+          <div className="meta-box">
+            <strong>Health score</strong>
+            <span>{summary?.architecture_health_score ?? '—'}</span>
+          </div>
         </div>
       </section>
 
       <section className="card">
         <div className="section-header">
           <div>
-            <h2>Граф зависимостей</h2>
-            <p>Визуализация связей между ключевыми пакетами и сервисами.</p>
+            <h2>Компонентные метрики</h2>
+            <p>Coupling, Cohesion и Instability для каждого модуля.</p>
           </div>
-          <span className="pill pill-primary">Dependency view</span>
+          <span className="pill pill-primary">{metrics.length} компонентов</span>
         </div>
-        <div className="arch-graph">
-          <svg viewBox="0 0 800 320" width="100%" height="100%" aria-label="architecture graph">
-            <defs>
-              <linearGradient id="line" x1="0" x2="1">
-                <stop offset="0%" stopColor="#0b6b6f" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#0b6b6f" stopOpacity="0.15" />
-              </linearGradient>
-            </defs>
-            <g stroke="url(#line)" strokeWidth="2" fill="none">
-              <path d="M160 80 C260 80, 280 160, 400 160" />
-              <path d="M160 240 C260 240, 280 160, 400 160" />
-              <path d="M400 160 C520 160, 540 100, 640 100" />
-              <path d="M400 160 C520 160, 540 220, 640 220" />
-            </g>
-            {[
-              { x: 110, y: 80, label: 'api/auth', risk: true },
-              { x: 110, y: 240, label: 'api/files' },
-              { x: 400, y: 160, label: 'services/users', risk: true },
-              { x: 690, y: 100, label: 'repositories/base' },
-              { x: 690, y: 220, label: 'integrations/ceph', risk: true },
-            ].map((node) => (
-              <g key={node.label} transform={`translate(${node.x}, ${node.y})`}>
-                <circle r="28" fill={node.risk ? 'rgba(161,53,68,0.14)' : 'rgba(11,107,111,0.10)'} stroke={node.risk ? '#8d2e3a' : '#0b6b6f'} strokeWidth="2" />
-                <text y="48" textAnchor="middle" fontSize="12" fill="#726e65">{node.label}</text>
-              </g>
-            ))}
-          </svg>
-        </div>
+        {metrics.length === 0 ? (
+          <p style={{ color: 'var(--muted)', marginTop: 12 }}>В PlantUML-файле не найдено компонентов.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Компонент</th>
+                  <th>Ca</th>
+                  <th>Ce</th>
+                  <th>Instability</th>
+                  <th>Coupling</th>
+                  <th>Cohesion</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.map((m) => {
+                  const status = couplingLabel(m.coupling_score);
+                  return (
+                    <tr key={m.id}>
+                      <td><strong>{m.component}</strong></td>
+                      <td>{m.ca}</td>
+                      <td>{m.ce}</td>
+                      <td>{m.instability.toFixed(2)}</td>
+                      <td>{m.coupling_score.toFixed(2)}</td>
+                      <td>{m.cohesion_score.toFixed(2)}</td>
+                      <td><span className={`pill ${status.cls}`}>{status.label}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="detail-grid">
         <article className="card">
           <h3>Hotspot-модули</h3>
-          <p>Компоненты с повышенной входящей и исходящей связностью.</p>
-          <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
-            <div className="vuln-row"><strong>api/auth</strong><small>Coupling 0.74 · Cohesion 0.41</small><span className="pill pill-error">Risk</span></div>
-            <div className="vuln-row"><strong>services/users</strong><small>Coupling 0.63 · Cohesion 0.52</small><span className="pill pill-warning">Review</span></div>
-            <div className="vuln-row"><strong>integrations/ceph</strong><small>Coupling 0.66 · Cohesion 0.38</small><span className="pill pill-error">Risk</span></div>
-          </div>
+          <p>Самые связанные компоненты — кандидаты на рефакторинг.</p>
+          {hotspots.length === 0 ? (
+            <p style={{ color: 'var(--muted)', marginTop: 12 }}>Нет данных.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
+              {hotspots.map((m) => {
+                const status = couplingLabel(m.coupling_score);
+                return (
+                  <div className="vuln-row" key={m.id}>
+                    <strong>{m.component}</strong>
+                    <small>Coupling {m.coupling_score.toFixed(2)} · Cohesion {m.cohesion_score.toFixed(2)}</small>
+                    <span className={`pill ${status.cls}`}>{status.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </article>
 
         <article className="card">
-          <h3>Рекомендованные действия</h3>
+          <h3>Рекомендации</h3>
           <p>Шаги по снижению архитектурного долга.</p>
-          <div className="issue-list">
-            <div className="issue"><div className="issue-top"><strong>Выделить auth orchestration в отдельный сервисный слой</strong><span className="pill pill-error">High</span></div><small>Снизит прямые связи между API и репозиториями.</small></div>
-            <div className="issue"><div className="issue-top"><strong>Сократить зависимость services/users от integrations</strong><span className="pill pill-warning">Medium</span></div><small>Добавить adapter-слой и интерфейсы.</small></div>
-            <div className="issue"><div className="issue-top"><strong>Разделить файловую интеграцию на provider + gateway</strong><span className="pill pill-warning">Medium</span></div><small>Упростит тестирование и поддержку.</small></div>
-          </div>
+          {recommendations.length === 0 ? (
+            <p style={{ color: 'var(--muted)', marginTop: 12 }}>Метрики в норме — рекомендаций нет.</p>
+          ) : (
+            <div className="issue-list">
+              {recommendations.map((rec) => (
+                <div className="issue" key={rec.id}>
+                  <div className="issue-top">
+                    <strong>{rec.rule}{rec.component ? ` · ${rec.component}` : ''}</strong>
+                    <span className={`pill ${SEVERITY_PILL[rec.severity] || 'pill-neutral'}`}>
+                      {rec.severity}
+                    </span>
+                  </div>
+                  <small>{rec.message}</small>
+                </div>
+              ))}
+            </div>
+          )}
         </article>
       </section>
     </div>

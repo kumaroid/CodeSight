@@ -18,15 +18,19 @@ from .service import authenticate_user, create_user, get_user_by_email, get_user
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-async def register(body: UserRegister, db: AsyncSession = Depends(get_db)) -> User:
+@router.post("/register", response_model=TokenPair, status_code=status.HTTP_201_CREATED)
+async def register(body: UserRegister, db: AsyncSession = Depends(get_db)) -> TokenPair:
     existing = await get_user_by_email(db, body.email)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="User with this email already exists",
         )
-    return await create_user(db, email=body.email, password=body.password)
+    user = await create_user(db, email=body.email, password=body.password)
+    return TokenPair(
+        access_token=create_access_token(user.id, user.email),
+        refresh_token=create_refresh_token(user.id),
+    )
 
 
 @router.post("/login", response_model=TokenPair)

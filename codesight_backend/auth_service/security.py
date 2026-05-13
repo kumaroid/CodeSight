@@ -45,8 +45,8 @@ def decode_token(token: str) -> dict:
     )
 
 
-def get_user_id_from_token(token: str, expected_type: str = "access") -> int:
+def get_user_id_from_token(token: str, expected_type: str = "access") -> uuid.UUID:
     payload = decode_token(token)
     if payload.get("type") != expected_type:
         raise Exception("Invalid token type")
-    return int(payload["sub"])
+    return uuid.UUID(payload["sub"])

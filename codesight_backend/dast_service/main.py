@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine
 from .kafka_handlers import start_kafka, stop_kafka
@@ -21,6 +22,14 @@ app = FastAPI(
     version="1.0.0",
     description="Динамический анализ: Valgrind + Python (pytest --collect-only или smoke)",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

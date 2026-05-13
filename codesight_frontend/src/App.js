@@ -24,7 +24,13 @@ function ProtectedLayout() {
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>Загрузка...</div>;
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        Загрузка...
+      </div>
+    );
+  }
   return user ? children : <Navigate to="/login" replace />;
 }
 
@@ -49,10 +55,9 @@ export default function App() {
         <Route path="/projects/:id/report" element={<ReportPage />} />
         <Route path="/projects/:id/security" element={<SecurityPage />} />
         <Route path="/projects/:id/architecture" element={<ArchPage />} />
-        <Route path="/reports" element={<ReportPage />} />
-        <Route path="/runs" element={<BuildStatusPage />} />
-        <Route path="/settings" element={<div className="card"><h2>Настройки</h2><p>Раздел в разработке.</p></div>} />
       </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

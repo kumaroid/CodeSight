@@ -1,17 +1,35 @@
 """Парсер PlantUML и вычислитель метрик Coupling / Cohesion.
 
-Ожидаемый формат — диаграмма компонентов/пакетов, сгенерированная arch-blueprint:
+Поддерживаются два диалекта диаграмм компонентов:
 
-  @startuml
-  [ComponentA] --> [ComponentB]
-  [ComponentA] --> [ComponentC]
-  package "pkg" {
-    [ComponentB]
-    [ComponentC]
-  }
-  @enduml
+1. Классический PlantUML компонентов (упрощённый):
 
-Поддерживаются стрелки: -->, .>, <|--
+    @startuml
+    package "pkg" {
+      [ComponentA]
+      [ComponentB]
+    }
+    [ComponentA] --> [ComponentB]
+    @enduml
+
+2. Вывод утилиты `arch-blueprint`, которая строит граф импортов
+   Python-проекта на базе grimp:
+
+    @startuml
+    !theme amiga
+    class fastapi.routing <<(M, #2ECC71)>>
+    class fastapi.params <<(M, #2ECC71)>>
+    fastapi.routing ---> fastapi.params
+    fastapi._compat <-[#E74C3C,bold]-> fastapi.openapi
+    note on link
+      ...
+    end note
+    @enduml
+
+«Пакет» компонента в формате arch-blueprint выводится из его dotted-имени
+(`fastapi.routing` → пакет `fastapi`, `taskiq.scheduler.scheduler` →
+пакет `taskiq.scheduler`). Это даёт осмысленную метрику cohesion даже без
+явных package-блоков.
 """
 
 from __future__ import annotations
@@ -52,65 +70,148 @@ _COUPLING_CRITICAL = 0.85
 _INSTABILITY_WARNING = 0.75
 _COHESION_LOW = 0.3
 
+# Идентификатор модуля/компонента: допускаем dotted-имена (a.b.c), дефисы и :
+_ID = r"[A-Za-z_][\w.\-:]*"
+
+# Объявления компонента (PlantUML):
+#   [Name]
+#   component "Name" | component Name
+#   rectangle / node / database / cloud (...)
+#   class fully.qualified.Name <<(M, #color)>>     ← arch-blueprint
+_DECL_RE = re.compile(
+    rf"\[({_ID})\]"
+    rf'|(?:component|rectangle|node|database|cloud|interface|class)\s+"?({_ID})"?'
+)
+
+# Стрелки зависимостей. arch-blueprint использует ---> и <-[#...,...]->,
+# классический PlantUML — -->, ..>, ->. Группа `arrow` ловит саму стрелку,
+# чтобы можно было отличить двунаправленные (циклические) от обычных.
+_DEP_RE = re.compile(
+    rf"\[?(?P<src>{_ID})\]?"
+    rf"\s*"
+    rf"(?P<arrow>(?:<-+\[[^\]]*\]-+>|<\.+\[[^\]]*\]\.+>|<-+>|-+>|\.+>|<\|--))"
+    rf"\s*"
+    rf"\[?(?P<dst>{_ID})\]?"
+)
+
+# Блок «note on link / end note» — содержит произвольную прозу с подстроками,
+# похожими на стрелки; пропускаем как комментарий.
+_NOTE_START_RE = re.compile(r"^\s*note\b", re.IGNORECASE)
+_NOTE_END_RE = re.compile(r"^\s*end\s*note\b", re.IGNORECASE)
+
+# Игнорируемые служебные ключевые слова PlantUML на старте строки.
+_SKIP_PREFIXES = (
+    "@startuml",
+    "@enduml",
+    "!theme",
+    "!include",
+    "!define",
+    "skinparam",
+    "title",
+    "left to right",
+    "top to bottom",
+    "hide ",
+    "show ",
+    "scale",
+    "header",
+    "footer",
+    "legend",
+    "endlegend",
+)
+
+
+def _derive_package(name: str) -> str:
+    """Для arch-blueprint dotted-имени пакет = всё кроме последнего сегмента."""
+    if "." not in name:
+        return ""
+    return name.rsplit(".", 1)[0]
+
+
+def _is_bidirectional(arrow: str) -> bool:
+    return arrow.startswith("<") and arrow.endswith(">")
+
 
 def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
-    """Находит все компоненты/модули в PlantUML."""
+    """Находит все компоненты/модули в PlantUML и их зависимости."""
     components: dict[str, ComponentData] = {}
-
-    # Паттерны объявления: [Name], component Name, rectangle Name
-    decl_re = re.compile(
-        r"(?:^|\s)\[([\w.\-/: ]+)\]"
-        r'|(?:^|\s)(?:component|rectangle|node|database|cloud)\s+"?([\w.\-/: ]+)"?'
-    )
-    # Паттерны зависимостей: --> , ..> , .> , <|--, -->
-    dep_re = re.compile(
-        r"\[([\w.\-/: ]+)\]\s*(?:-->|\.\.>|\->|\.<|--|<\|--|-\|>)\s*\[([\w.\-/: ]+)\]"
-        r"|([\w.\-/: ]+)\s*(?:-->|\.\.>|\->|--)\s*([\w.\-/: ]+)"
-    )
-
-    current_pkg = ""
     pkg_stack: list[str] = []
+    in_note = False
 
     for raw in lines:
         line = raw.strip()
+        if not line or line.startswith("'"):  # пустые/комментарии
+            continue
 
-        # Вход в package/namespace
+        # Многострочные блоки note — пропускаем целиком
+        if in_note:
+            if _NOTE_END_RE.match(line):
+                in_note = False
+            continue
+        if _NOTE_START_RE.match(line):
+            # Inline-вариант `note ... end note` в одной строке тоже корректно ловится
+            if not _NOTE_END_RE.search(line):
+                in_note = True
+            continue
+
+        lower = line.lower()
+        if any(lower.startswith(p) for p in _SKIP_PREFIXES):
+            continue
+
+        # Вход в package/namespace/folder { ... }
         pkg_match = re.match(
-            r'(?:package|namespace|folder)\s+["\']?([\w.\-/ ]+)["\']?\s*\{', line
+            rf'(?:package|namespace|folder)\s+["\']?({_ID}|[\w./\- ]+)["\']?\s*\{{',
+            line,
         )
         if pkg_match:
-            pkg_name = pkg_match.group(1).strip()
-            pkg_stack.append(pkg_name)
-            current_pkg = pkg_name
+            pkg_stack.append(pkg_match.group(1).strip())
             continue
-
-        # Выход из блока
         if line == "}" and pkg_stack:
             pkg_stack.pop()
-            current_pkg = pkg_stack[-1] if pkg_stack else ""
             continue
 
-        # Объявление компонента
-        for m in decl_re.finditer(line):
-            name = (m.group(1) or m.group(2) or "").strip()
-            if name and name not in ("@startuml", "@enduml"):
-                if name not in components:
-                    components[name] = ComponentData(name=name, package=current_pkg)
-                elif not components[name].package:
-                    components[name].package = current_pkg
+        current_pkg = pkg_stack[-1] if pkg_stack else ""
 
-        # Зависимости
-        dm = dep_re.search(line)
-        if dm:
-            src = (dm.group(1) or dm.group(3) or "").strip()
-            dst = (dm.group(2) or dm.group(4) or "").strip()
-            if src and dst and src != dst:
-                if src not in components:
-                    components[src] = ComponentData(name=src, package=current_pkg)
-                if dst not in components:
-                    components[dst] = ComponentData(name=dst, package=current_pkg)
-                components[src].efferent.add(dst)
-                components[dst].afferent.add(src)
+        # Объявление компонента
+        for m in _DECL_RE.finditer(line):
+            name = (m.group(1) or m.group(2) or "").strip()
+            if not name or name.lower() in ("note", "on"):
+                continue
+            pkg = current_pkg or _derive_package(name)
+            existing = components.get(name)
+            if existing is None:
+                components[name] = ComponentData(name=name, package=pkg)
+            elif not existing.package and pkg:
+                existing.package = pkg
+
+        # Зависимости (может быть несколько в одной строке).
+        for dm in _DEP_RE.finditer(line):
+            src = dm.group("src").strip()
+            dst = dm.group("dst").strip()
+            arrow = dm.group("arrow") or "-->"
+            # Защита от ложных срабатываний на ключевых словах.
+            if src.lower() in ("class", "package", "note") or dst.lower() in (
+                "class",
+                "package",
+                "note",
+            ):
+                continue
+            if not src or not dst or src == dst:
+                continue
+
+            for comp_name in (src, dst):
+                if comp_name not in components:
+                    components[comp_name] = ComponentData(
+                        name=comp_name,
+                        package=current_pkg or _derive_package(comp_name),
+                    )
+
+            components[src].efferent.add(dst)
+            components[dst].afferent.add(src)
+
+            if _is_bidirectional(arrow):
+                # Двунаправленная стрелка = цикл: добавляем обратную дугу тоже.
+                components[dst].efferent.add(src)
+                components[src].afferent.add(dst)
 
     return components
 
@@ -127,7 +228,6 @@ def _compute_metrics(components: dict[str, ComponentData]) -> list[Metrics]:
         instability = ce / total if total > 0 else 0.0
         coupling_score = total / denominator
 
-        # Cohesion: доля зависимостей внутри того же пакета
         neighbors = comp.afferent | comp.efferent
         if neighbors and comp.package:
             same_pkg = sum(
@@ -137,10 +237,10 @@ def _compute_metrics(components: dict[str, ComponentData]) -> list[Metrics]:
             )
             cohesion_score = same_pkg / len(neighbors)
         elif not comp.package:
-            # Без пакета — когезия не определена, считаем нейтральной (0.5)
+            # Без пакета (плоский corner case) — нейтральная оценка.
             cohesion_score = 0.5
         else:
-            cohesion_score = 1.0  # нет зависимостей — изолирован (хорошая когезия)
+            cohesion_score = 1.0
 
         result.append(
             Metrics(
@@ -163,7 +263,6 @@ def _generate_recommendations(
     recs: list[Recommendation] = []
     n = len(components)
 
-    # 1. God-компонент: очень высокий coupling
     for m in metrics:
         if m.coupling_score >= _COUPLING_CRITICAL:
             recs.append(
@@ -190,7 +289,6 @@ def _generate_recommendations(
                 )
             )
 
-    # 2. Нестабильные абстрактные зависимости (принцип стабильных зависимостей)
     for m in metrics:
         if m.instability >= _INSTABILITY_WARNING and m.ca > 0:
             recs.append(
@@ -206,7 +304,6 @@ def _generate_recommendations(
                 )
             )
 
-    # 3. Низкая когезия
     for m in metrics:
         if m.cohesion_score < _COHESION_LOW and (m.ca + m.ce) > 1:
             recs.append(
@@ -222,7 +319,6 @@ def _generate_recommendations(
                 )
             )
 
-    # 4. Циклические зависимости (простая попарная проверка)
     comp_map = {c.name: c for c in components.values()}
     visited_pairs: set[frozenset[str]] = set()
     for comp in components.values():
@@ -240,12 +336,12 @@ def _generate_recommendations(
                         rule="CIRCULAR_DEPENDENCY",
                         message=(
                             f"Обнаружена циклическая зависимость между "
-                            f"'{comp.name}' и '{dep}'. Циклы нарушают принцип ацикличности зависимостей."
+                            f"'{comp.name}' и '{dep}'. Циклы нарушают принцип "
+                            "ацикличности зависимостей."
                         ),
                     )
                 )
 
-    # 5. Общий балл: если средний coupling слишком высок
     if n > 1:
         avg_coupling = sum(m.coupling_score for m in metrics) / n
         if avg_coupling > _COUPLING_HIGH:
@@ -256,8 +352,8 @@ def _generate_recommendations(
                     rule="GLOBAL_HIGH_COUPLING",
                     message=(
                         f"Средний coupling по всему проекту: {avg_coupling:.2f}. "
-                        "Архитектура сильно связана — рассмотрите введение слоёв абстракций "
-                        "или паттернов (Mediator, Façade, Dependency Inversion)."
+                        "Архитектура сильно связана — рассмотрите введение слоёв "
+                        "абстракций или паттернов (Mediator, Façade, Dependency Inversion)."
                     ),
                 )
             )
@@ -296,7 +392,6 @@ def analyze_plantuml(
     critical_count = sum(1 for r in recommendations if r.severity == "critical")
     warning_count = sum(1 for r in recommendations if r.severity == "warning")
 
-    # Итоговый балл здоровья архитектуры [0..100]
     health = max(0, 100 - critical_count * 20 - warning_count * 5)
 
     summary = {

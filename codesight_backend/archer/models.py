@@ -1,5 +1,11 @@
-from pydantic import BaseModel, Field
 from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+
+# --------------------------------------------------------------------------- #
+# Старый ручной режим: высокоуровневое описание архитектуры
+# --------------------------------------------------------------------------- #
 
 
 class ServiceDescription(BaseModel):
@@ -27,22 +33,64 @@ class ArchitectureInput(BaseModel):
     )
 
 
-class Recommendation(BaseModel):
-    """Структурированная рекомендация"""
+# --------------------------------------------------------------------------- #
+# Новый автоматический режим: на вход — метрики от arch_service
+# --------------------------------------------------------------------------- #
 
+
+class ComponentMetricIn(BaseModel):
+    component: str
+    ca: int
+    ce: int
+    instability: float
+    coupling_score: float
+    cohesion_score: float
+
+
+class RuleRecommendationIn(BaseModel):
+    severity: str
+    component: Optional[str] = None
+    rule: str
+    message: str
+
+
+class ArchMetricsInput(BaseModel):
+    project_id: str
+    summary: dict = Field(default_factory=dict)
+    metrics: List[ComponentMetricIn] = Field(default_factory=list)
+    rule_recommendations: List[RuleRecommendationIn] = Field(default_factory=list)
+
+
+class AIRecommendation(BaseModel):
+    severity: str = "info"
+    component: Optional[str] = None
+    rule: str = "AI_HINT"
+    message: str
+
+
+class ArchMetricsResponse(BaseModel):
+    summary: str
+    recommendations: List[AIRecommendation]
+    source: str  # "gigachat" или "fallback"
+
+
+# --------------------------------------------------------------------------- #
+# Старая структура ответа (manual /analyze)
+# --------------------------------------------------------------------------- #
+
+
+class Recommendation(BaseModel):
     title: str
     problem: str
     risk: str
     recommendation: str
     expected_effect: Optional[str] = None
-    priority: str = "medium"  # high, medium, low
+    priority: str = "medium"
 
 
 class RecommendationResponse(BaseModel):
-    """Ответ с анализом архитектуры"""
-
     summary: str
-    findings: List[dict]  # Предварительный анализ
-    model_summary: str  # Резюме от модели
-    recommendations: List[Recommendation]  # Структурированные рекомендации
-    raw_model_output: str  # Оригинальный вывод модели
+    findings: List[dict]
+    model_summary: str
+    recommendations: List[Recommendation]
+    raw_model_output: str
