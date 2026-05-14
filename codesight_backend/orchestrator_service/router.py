@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import get_db
 from .models import SagaState
-from .saga import start_saga
+from .saga import cancel_saga, start_saga
 from .schemas import SagaResponse, StartAnalysisRequest
 
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
@@ -88,3 +88,23 @@ async def list_sagas(
         .order_by(SagaState.created_at.desc())
     )
     return [SagaResponse.from_orm(s) for s in result.scalars().all()]
+
+
+@router.post(
+    "/sagas/{saga_id}/cancel",
+    response_model=SagaResponse,
+    summary="Отменить выполняющуюся сагу",
+)
+async def cancel_saga_route(saga_id: str) -> SagaResponse:
+    """
+    Отменяет сагу: запущенные/ожидающие шаги помечаются как `cancelled`,
+    завершённые — компенсируются. Терминальные саги (`completed`/`failed`/
+    `compensated`) остаются без изменений.
+    """
+    saga = await cancel_saga(saga_id)
+    if saga is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Сага {saga_id!r} не найдена",
+        )
+    return SagaResponse.from_orm(saga)

@@ -75,6 +75,7 @@ export default function ReportPage() {
   const archSummary = results.arch?.summary || null;
   const archRecommendations = results.arch?.recommendations || [];
   const testingRun = results.testing || null;
+  const dastRun = results.dast || null;
 
   const quality = useMemo(
     () => computeQualityScore({
@@ -218,6 +219,84 @@ export default function ReportPage() {
         </div>
       </section>
 
+      <section className="card">
+        <div className="section-header">
+          <div>
+            <h2>Статический анализ (SAST)</h2>
+            <p>Ruff, Bandit, mypy — краткая выборка; полный список на отдельной странице.</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate(`/projects/${id}/static${sagaIdParam ? `?saga=${sagaIdParam}` : ''}`)}
+          >
+            Все замечания →
+          </button>
+        </div>
+        {codeIssues.length === 0 ? (
+          <p style={{ color: 'var(--muted)', marginTop: 12 }}>
+            {results.analysis
+              ? 'Замечаний нет или запуск ещё не завершён.'
+              : 'Нет данных SAST для этой саги (шаг analysis).'}
+          </p>
+        ) : (
+          <div className="issue-list" style={{ marginTop: 12 }}>
+            {codeIssues.slice(0, 12).map((i) => (
+              <div className="issue" key={i.id}>
+                <div className="issue-top">
+                  <strong>{i.tool}: {i.message}</strong>
+                  <span className={`pill ${SEVERITY_PILL[i.severity?.toLowerCase()] || 'pill-neutral'}`}>{i.severity}</span>
+                </div>
+                <small>{i.file_path}{i.line != null ? `:${i.line}` : ''}</small>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="section-header">
+          <div>
+            <h2>Динамический анализ (DAST)</h2>
+            <p>Valgrind + pytest collect / smoke. Подробный лог — на странице DAST.</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate(`/projects/${id}/dast${sagaIdParam ? `?saga=${sagaIdParam}` : ''}`)}
+          >
+            Открыть отчёт DAST →
+          </button>
+        </div>
+        {!dastRun ? (
+          <p style={{ color: 'var(--muted)', marginTop: 12 }}>Нет прогона DAST для выбранной саги.</p>
+        ) : (
+          <div style={{ marginTop: 12 }}>
+            <p><strong>Статус:</strong> {dastRun.status} · <strong>Режим:</strong> {dastRun.command_summary || '—'}</p>
+            {dastRun.error_message && (
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>{dastRun.error_message}</p>
+            )}
+            {dastRun.valgrind_report && (
+              <pre
+                style={{
+                  marginTop: 10,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'var(--surface-2)',
+                  fontSize: 11,
+                  maxHeight: 200,
+                  overflow: 'auto',
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {dastRun.valgrind_report.slice(0, 4000)}
+                {dastRun.valgrind_report.length > 4000 ? '\n…' : ''}
+              </pre>
+            )}
+          </div>
+        )}
+      </section>
+
       <section className="dashboard-grid">
         <div className="stack">
           <article className="card">
@@ -289,7 +368,7 @@ export default function ReportPage() {
                     ))}
                 </div>
               ) : (
-                <p style={{ color: 'var(--muted)', marginTop: 12 }}>Архитектурные данные не получены (нет .puml диаграммы).</p>
+                <p style={{ color: 'var(--muted)', marginTop: 12 }}>Архитектурные данные не получены (шаг arch не выполнен или нет графа модулей).</p>
               )}
             </article>
           </div>
@@ -350,6 +429,8 @@ export default function ReportPage() {
             <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
               <button className="btn btn-secondary" onClick={() => navigate(`/projects/${id}/security`)}>Security анализ</button>
               <button className="btn btn-secondary" onClick={() => navigate(`/projects/${id}/architecture`)}>Архитектура</button>
+              <button className="btn btn-secondary" onClick={() => navigate(`/projects/${id}/static${sagaIdParam ? `?saga=${sagaIdParam}` : ''}`)}>Статический анализ</button>
+              <button className="btn btn-secondary" onClick={() => navigate(`/projects/${id}/dast${sagaIdParam ? `?saga=${sagaIdParam}` : ''}`)}>DAST</button>
               <button className="btn btn-secondary" onClick={() => navigate(`/projects/${id}/status`)}>Статус запуска</button>
               <button className="btn btn-secondary" onClick={() => navigate(`/projects/${id}`)}>К проекту</button>
             </div>

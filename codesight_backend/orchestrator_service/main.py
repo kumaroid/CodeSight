@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
+from .activity_log import ensure_activity_log_column
 from .database import Base, engine
 from .kafka_client import stop_producer
 from .router import router
@@ -49,6 +50,7 @@ async def startup() -> None:
     # Создаём таблицы
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await ensure_activity_log_column()
     logger.info("БД оркестратора инициализирована")
 
     # Запускаем consumer в фоне

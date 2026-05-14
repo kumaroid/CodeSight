@@ -7,9 +7,10 @@ import json
 import logging
 from contextlib import suppress
 
+from .activity_log import append_activity
 from .config import settings
 from .database import AsyncSessionLocal
-from .kafka_client import make_consumer, send
+from .kafka_client import make_consumer, send, start_consumer_with_retries
 from .models import SagaState
 from .schemas import AnalysisCommandMessage, AnalysisResultMessage
 
@@ -65,6 +66,12 @@ async def start_saga(saga: SagaState) -> None:
         db_saga.steps_status = json.dumps(steps_status)
         await db.commit()
 
+    await append_activity(
+        saga.id,
+        f"Сага запущена: шаги {', '.join(steps)}",
+        level="info",
+    )
+
     for step in steps:
         topic = STEP_COMMAND_TOPIC.get(step)
         if topic is None:
@@ -77,6 +84,12 @@ async def start_saga(saga: SagaState) -> None:
         )
         await send(topic, msg.model_dump(), key=saga.id)
         logger.info("Сага %s: отправлена команда '%s'", saga.id, step)
+        await append_activity(
+            saga.id,
+            f"Команда шага «{step}» отправлена в Kafka",
+            level="info",
+            step=step,
+        )
 
     # Публикуем текущее состояние
     await _publish_state(saga.id)
@@ -88,17 +101,39 @@ async def start_saga(saga: SagaState) -> None:
 
 
 async def result_consumer_loop() -> None:
-    """Бесконечный фоновый цикл, обрабатывающий результаты от сервисов."""
-    consumer = make_consumer(*RESULT_TOPICS)
-    await consumer.start()
-    logger.info("Оркестратор: consumer запущен, слушает %s", RESULT_TOPICS)
-    try:
-        async for msg in consumer:
-            step = TOPIC_TO_STEP.get(msg.topic, "unknown")
-            with suppress(Exception):
-                await _handle_result(step, msg.value)
-    finally:
-        await consumer.stop()
+    """Бесконечный фоновый цикл, обрабатывающий результаты от сервисов.
+
+    Устойчив к стартовой гонке Kafka и к временным разрывам соединения:
+    consumer переподнимается с экспоненциальной паузой.
+    """
+    backoff = 1.0
+    while True:
+        consumer = make_consumer(*RESULT_TOPICS)
+        try:
+            await start_consumer_with_retries(consumer, label="orchestrator-results")
+        except Exception:
+            logger.exception("Оркестратор: не удалось поднять consumer, ретрай")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 1.7, 10.0)
+            continue
+        logger.info("Оркестратор: consumer запущен, слушает %s", RESULT_TOPICS)
+        backoff = 1.0
+        try:
+            async for msg in consumer:
+                step = TOPIC_TO_STEP.get(msg.topic, "unknown")
+                with suppress(Exception):
+                    await _handle_result(step, msg.value)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Оркестратор: consumer упал — перезапуск")
+        finally:
+            try:
+                await consumer.stop()
+            except Exception:  # noqa: BLE001
+                logger.exception("Ошибка при остановке consumer оркестратора")
+        await asyncio.sleep(backoff)
+        backoff = min(backoff * 1.7, 10.0)
 
 
 async def _handle_result(step: str, payload: dict) -> None:
@@ -122,7 +157,17 @@ async def _handle_result(step: str, payload: dict) -> None:
         step,
         result.status,
     )
+    await append_activity(
+        result.saga_id,
+        (
+            f"Результат шага «{step}»: {result.status}"
+            + (f" — {result.error_message}" if result.error_message else "")
+        ),
+        level="error" if result.status == "failed" else "info",
+        step=step,
+    )
 
+    completed_all = False
     async with AsyncSessionLocal() as db:
         saga = await db.get(SagaState, result.saga_id)
         if saga is None:
@@ -131,8 +176,19 @@ async def _handle_result(step: str, payload: dict) -> None:
             )
             return
 
+        # Если сага уже отменена/компенсируется — не перетираем "cancelled"
+        # статусы шагов; только сохраняем run_id (вдруг понадобится компенсация).
+        if saga.status in ("compensating", "compensated"):
+            if result.run_id:
+                steps_run_ids: dict[str, str] = json.loads(saga.steps_run_ids)
+                steps_run_ids[step] = result.run_id
+                saga.steps_run_ids = json.dumps(steps_run_ids)
+                await db.commit()
+                await _publish_state(result.saga_id)
+            return
+
         steps_status: dict[str, str] = json.loads(saga.steps_status)
-        steps_run_ids: dict[str, str] = json.loads(saga.steps_run_ids)
+        steps_run_ids = json.loads(saga.steps_run_ids)
 
         steps_status[step] = result.status
         if result.run_id:
@@ -154,13 +210,60 @@ async def _handle_result(step: str, payload: dict) -> None:
         else:
             # Проверяем, завершены ли все запрошенные шаги
             requested: list[str] = json.loads(saga.requested_steps)
-            all_done = all(steps_status.get(s) == "completed" for s in requested)
-            if all_done:
+            completed_all = all(steps_status.get(s) == "completed" for s in requested)
+            if completed_all:
                 saga.status = "completed"
 
         await db.commit()
 
+    if completed_all:
+        await append_activity(
+            result.saga_id,
+            "Все запрошенные шаги анализа успешно завершены",
+            level="info",
+        )
+
     await _publish_state(result.saga_id)
+
+
+# ---------------------------------------------------------------------------
+# Отмена саги пользователем
+# ---------------------------------------------------------------------------
+
+
+async def cancel_saga(saga_id: str, reason: str | None = None) -> SagaState | None:
+    """
+    Отменить выполняющуюся сагу.
+
+    Запущенные/ожидающие шаги помечаются как "cancelled" — поздние результаты
+    от воркеров будут проигнорированы в `_handle_result`. Для уже завершённых
+    шагов отправляются компенсационные команды.
+    """
+    async with AsyncSessionLocal() as db:
+        saga = await db.get(SagaState, saga_id)
+        if saga is None:
+            return None
+        if saga.status in ("completed", "failed", "compensated"):
+            return saga  # уже терминальное состояние
+
+        steps_status: dict[str, str] = json.loads(saga.steps_status)
+        for step, st in list(steps_status.items()):
+            if st in ("pending", "running"):
+                steps_status[step] = "cancelled"
+        saga.steps_status = json.dumps(steps_status)
+        saga.status = "compensating"
+        saga.error_message = reason or "Отменено пользователем"
+        await db.commit()
+        await db.refresh(saga)
+
+    await append_activity(
+        saga_id,
+        reason or "Пользователь остановил анализ (отмена саги)",
+        level="warning",
+    )
+
+    await _compensate(saga)
+    return saga
 
 
 # ---------------------------------------------------------------------------
@@ -194,12 +297,23 @@ async def _compensate(saga: SagaState) -> None:
 
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
+        await append_activity(
+            saga.id,
+            f"Отправлено компенсационных команд: {len(tasks)}",
+            level="warning",
+        )
 
     async with AsyncSessionLocal() as db:
         db_saga = await db.get(SagaState, saga.id)
         if db_saga:
             db_saga.status = "compensated"
             await db.commit()
+
+    await append_activity(
+        saga.id,
+        "Компенсация завершена, сага закрыта",
+        level="info",
+    )
 
     await _publish_state(saga.id)
 

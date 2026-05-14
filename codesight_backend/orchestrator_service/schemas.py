@@ -40,9 +40,17 @@ class SagaResponse(BaseModel):
     steps_status: dict[str, str]
     steps_run_ids: dict[str, str]
     error_message: str | None = None
+    activity_log: list[dict[str, Any]] = Field(default_factory=list)
 
     @classmethod
     def from_orm(cls, saga: Any) -> "SagaResponse":
+        raw_log = getattr(saga, "activity_log", None) or "[]"
+        try:
+            activity_log = json.loads(raw_log) if isinstance(raw_log, str) else []
+        except json.JSONDecodeError:
+            activity_log = []
+        if not isinstance(activity_log, list):
+            activity_log = []
         return cls(
             saga_id=saga.id,
             project_id=saga.project_id,
@@ -50,6 +58,7 @@ class SagaResponse(BaseModel):
             steps_status=json.loads(saga.steps_status),
             steps_run_ids=json.loads(saga.steps_run_ids),
             error_message=saga.error_message,
+            activity_log=activity_log,
         )
 
 

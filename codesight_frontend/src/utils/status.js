@@ -18,6 +18,7 @@ export const STEP_STATUS = {
   running: { label: 'Выполняется', cls: 'pill-running', stageCls: 'stage-running' },
   completed: { label: 'Готово', cls: 'pill-success', stageCls: 'stage-success' },
   failed: { label: 'Ошибка', cls: 'pill-error', stageCls: 'stage-error' },
+  cancelled: { label: 'Остановлено', cls: 'pill-warning', stageCls: 'stage-pending' },
 };
 
 export const STEP_LABEL = {
@@ -37,7 +38,9 @@ export const sagaProgress = (saga) => {
   if (!saga || !saga.steps_status) return 0;
   const entries = Object.values(saga.steps_status);
   if (entries.length === 0) return 0;
-  const done = entries.filter((s) => s === 'completed' || s === 'failed').length;
+  const done = entries.filter((s) =>
+    s === 'completed' || s === 'failed' || s === 'cancelled',
+  ).length;
   return Math.round((done / entries.length) * 100);
 };
 

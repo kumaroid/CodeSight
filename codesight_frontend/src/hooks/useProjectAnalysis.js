@@ -3,6 +3,7 @@ import { getProject } from '../api/projects';
 import { getSaga, listSagasForProject } from '../api/orchestrator';
 import {
   getArchRun,
+  getDastRun,
   getSastRun,
   getSecurityScan,
   getTestingRun,
@@ -19,6 +20,7 @@ const STEP_TO_FETCHER = {
   security: getSecurityScan,
   arch: getArchRun,
   testing: getTestingRun,
+  dast: getDastRun,
 };
 
 const safe = async (fn, ...args) => {

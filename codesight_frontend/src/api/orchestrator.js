@@ -14,3 +14,6 @@ export const listSagasForProject = (projectId) =>
   orchestratorApi
     .get('/orchestrator/sagas', { params: { project_id: projectId } })
     .then((r) => r.data || []);
+
+export const cancelSaga = (sagaId) =>
+  orchestratorApi.post(`/orchestrator/sagas/${sagaId}/cancel`).then((r) => r.data);

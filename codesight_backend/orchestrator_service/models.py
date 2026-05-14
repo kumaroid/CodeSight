@@ -56,6 +56,9 @@ class SagaState(Base):
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # JSON-массив событий для UI: [{"ts":"...","level":"info","step":"analysis","message":"..."}, ...]
+    activity_log: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -52,12 +52,14 @@ export const testingApi = makeClient(SERVICE_URLS.testing);
 export const securityApi = makeClient(SERVICE_URLS.security);
 export const archApi = makeClient(SERVICE_URLS.arch);
 export const orchestratorApi = makeClient(SERVICE_URLS.orchestrator);
+export const dastApi = makeClient(SERVICE_URLS.dast);
 
 const apiByStep = {
   analysis: sastApi,
   security: securityApi,
   arch: archApi,
   testing: testingApi,
+  dast: dastApi,
 };
 
 export const runEndpointForStep = (step, runId) => {
@@ -70,6 +72,8 @@ export const runEndpointForStep = (step, runId) => {
       return { client: archApi, url: `/arch/runs/${runId}` };
     case 'testing':
       return { client: testingApi, url: `/testing/runs/${runId}` };
+    case 'dast':
+      return { client: dastApi, url: `/dast/runs/${runId}` };
     default:
       return null;
   }

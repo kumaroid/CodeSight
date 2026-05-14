@@ -1,4 +1,4 @@
-import { archApi, sastApi, securityApi, testingApi } from './client';
+import { archApi, dastApi, sastApi, securityApi, testingApi } from './client';
 
 export const getSastRun = (runId) =>
   sastApi.get(`/analysis/runs/${runId}`).then((r) => r.data);
@@ -22,6 +22,9 @@ export const getArchRunsForProject = (projectId) =>
 
 export const getTestingRun = (runId) =>
   testingApi.get(`/testing/runs/${runId}`).then((r) => r.data);
+
+export const getDastRun = (runId) =>
+  dastApi.get(`/dast/runs/${runId}`).then((r) => r.data);
 
 export const getTestingRunsForProject = (projectId) =>
   testingApi.get(`/testing/projects/${projectId}/runs`).then((r) => r.data?.items || []);
