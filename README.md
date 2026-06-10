@@ -26,7 +26,7 @@ CodeSight объединяет всё это в единую платформу 
 | **Базы данных** | PostgreSQL (asyncpg), Redis |
 | **Хранилище файлов** | Ceph |
 | **Инфраструктура** | Docker, Docker Compose |
-| **Анализаторы** | Ruff, Radon, Bandit, Semgrep, mypy |
+| **Анализаторы** | Ruff, Radon, Bandit, mypy |
 
 ---
 
