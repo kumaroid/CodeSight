@@ -26,7 +26,7 @@ export const STEP_LABEL = {
   security: { label: 'Безопасность', desc: 'OWASP / CWE, pip-audit' },
   arch: { label: 'Архитектура', desc: 'Coupling и Cohesion' },
   testing: { label: 'Тесты', desc: 'pytest + coverage' },
-  dast: { label: 'Динамика', desc: 'Valgrind + smoke' },
+  dast: { label: 'Динамика', desc: 'Байткод · импорты · pytest · RAM · deps · memcheck' },
 };
 
 export const STEPS_ORDER = ['analysis', 'security', 'arch', 'testing', 'dast'];

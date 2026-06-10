@@ -10,7 +10,13 @@ from .schemas import (
     ArchRunOut,
     StartArchRequest,
 )
-from .service import delete_run, get_run, list_runs_for_project, start_arch_analysis
+from .service import (
+    delete_run,
+    get_run,
+    list_runs_for_project,
+    start_arch_analysis,
+    summary_from_persisted_run,
+)
 
 router = APIRouter(prefix="/arch", tags=["architecture"])
 
@@ -62,6 +68,7 @@ async def get_run_by_id(
 ) -> ArchRunDetail:
     run = await get_run(run_id, db)
     detail = ArchRunDetail.model_validate(run)
+    detail.summary = summary_from_persisted_run(run)
     return detail
 
 

@@ -62,8 +62,12 @@ class ComponentMetric(Base):
     instability: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # Coupling score (нормализованный): (Ca + Ce) / (N - 1), N = кол-во компонентов
     coupling_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    # Cohesion proxy: доля компонентов в той же «группе» (package/namespace)
-    cohesion_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Cohesion proxy: средняя иерархическая близость пакета компонента к пакетам
+    # его соседей (см. arch_service/analyzer.py::_package_similarity).
+    # У изолированных модулей (без рёбер графа) cohesion не определена → NULL.
+    cohesion_score: Mapped[float | None] = mapped_column(
+        Float, nullable=True, default=None
+    )
 
     run: Mapped["ArchRun"] = relationship("ArchRun", back_populates="metrics")
 

@@ -10,7 +10,8 @@ class ComponentMetricOut(BaseModel):
     ce: int
     instability: float
     coupling_score: float
-    cohesion_score: float
+    # У изолированных модулей (без соседей в графе) cohesion не определена.
+    cohesion_score: float | None = None
 
     model_config = {"from_attributes": True}
 

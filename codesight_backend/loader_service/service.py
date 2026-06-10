@@ -24,6 +24,40 @@ def _ensure_storage_root() -> None:
     Path(settings.storage_dir).mkdir(parents=True, exist_ok=True)
 
 
+def _flatten_single_top_dir(dest: Path) -> None:
+    """
+    Если после распаковки в `dest` лежит ровно один элемент и это директория,
+    переносим её содержимое на уровень выше.
+
+    Это типичный паттерн архивов GitHub (``<repo>-<branch>/...``) и
+    «pack-from-folder» zip-ов: без флаттенинга корень проекта оказывается
+    на один уровень глубже, чем ожидают анализаторы (``pip_check``,
+    ``arch_service`` и т.п. ищут ``pyproject.toml`` / ``requirements*.txt``
+    строго в корне).
+    """
+    try:
+        entries = list(dest.iterdir())
+    except FileNotFoundError:
+        return
+    if len(entries) != 1:
+        return
+    only = entries[0]
+    if not only.is_dir():
+        return
+
+    # На случай конфликтов имён (`only.name` совпадает с чем-то в dest)
+    # делаем перемещение через временное имя.
+    children = list(only.iterdir())
+    for child in children:
+        target = dest / child.name
+        if target.exists():
+            # Безопасный фолбэк: ничего не трогаем.
+            return
+    for child in children:
+        shutil.move(str(child), str(dest / child.name))
+    only.rmdir()
+
+
 async def upload_zip_project(
     file: UploadFile,
     db: AsyncSession,
@@ -57,6 +91,7 @@ async def upload_zip_project(
                         detail="Архив содержит небезопасные пути (path traversal).",
                     )
             zf.extractall(storage_path)
+        _flatten_single_top_dir(storage_path)
     except zipfile.BadZipFile:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -122,7 +157,14 @@ async def _clone_github_via_api(repo_url: str, dest: Path) -> None:
     clean = repo_url.rstrip("/").removesuffix(".git")
     for branch in ("main", "master"):
         archive_url = f"{clean}/archive/refs/heads/{branch}.zip"
-        async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+        # trust_env=False — не читать HTTP_PROXY/HTTPS_PROXY/ALL_PROXY из окружения.
+        # Системный SOCKS-прокси (socks5://127.0.0.1:...) недоступен изнутри
+        # контейнера, поэтому его использование только вызывает ошибку.
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=60.0,
+            trust_env=False,
+        ) as client:
             response = await client.get(archive_url)
             if response.status_code == 200:
                 _unzip_bytes(response.content, dest)
@@ -137,6 +179,11 @@ def _unzip_bytes(content: bytes, dest: Path) -> None:
     try:
         with zipfile.ZipFile(tmp_path, "r") as zf:
             zf.extractall(dest)
+        # GitHub-овые archive/refs/heads/<branch>.zip всегда содержат
+        # внешнюю папку `<repo>-<branch>/`. Без флаттенинга корень проекта
+        # окажется на уровень ниже, и проверки вроде `pip_check` не увидят
+        # `pyproject.toml` / `requirements*.txt`.
+        _flatten_single_top_dir(dest)
     finally:
         tmp_path.unlink(missing_ok=True)
 

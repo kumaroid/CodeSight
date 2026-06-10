@@ -26,14 +26,9 @@ class Settings(BaseSettings):
     kafka_consumer_group: str = pydantic.Field(
         "codesight-arch-worker", alias="KAFKA_CONSUMER_GROUP"
     )
-
-    # Опциональный URL archer-сервиса (LLM-агент архитектурных рекомендаций).
-    # Если задан — после подсчёта метрик arch_service дополняет рекомендации
-    # ответом archer. Если недоступен — игнорируем (best-effort).
     archer_url: str | None = pydantic.Field(None, alias="ARCHER_URL")
     archer_timeout_seconds: float = pydantic.Field(45.0, alias="ARCHER_TIMEOUT_SECONDS")
 
-    # Максимальное время, которое allow для запуска arch-blueprint
     arch_blueprint_timeout_seconds: float = pydantic.Field(
         120.0, alias="ARCH_BLUEPRINT_TIMEOUT_SECONDS"
     )

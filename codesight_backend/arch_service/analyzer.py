@@ -30,6 +30,12 @@
 (`fastapi.routing` → пакет `fastapi`, `taskiq.scheduler.scheduler` →
 пакет `taskiq.scheduler`). Это даёт осмысленную метрику cohesion даже без
 явных package-блоков.
+
+Cohesion считается как среднее значение «иерархической близости пакетов»
+по соседям компонента (см. `_package_similarity`): полное совпадение
+пакета → 1.0, общий только верхний уровень → 0.5, разные верхние уровни → 0.
+У компонентов без рёбер графа cohesion не определена и хранится как
+``None`` — такие модули исключаются из агрегаций и rule-based рекомендаций.
 """
 
 from __future__ import annotations
@@ -53,39 +59,28 @@ class Metrics:
     ce: int
     instability: float  # Ce / (Ca + Ce)
     coupling_score: float  # (Ca + Ce) / (N - 1)
-    cohesion_score: float  # доля соседей в том же пакете
+    cohesion_score: float | None
 
 
 @dataclass
 class Recommendation:
-    severity: str  # critical | warning | info
+    severity: str
     component: str | None
     rule: str
     message: str
 
 
-# Пороги
 _COUPLING_HIGH = 0.6
 _COUPLING_CRITICAL = 0.85
 _INSTABILITY_WARNING = 0.75
 _COHESION_LOW = 0.3
 
-# Идентификатор модуля/компонента: допускаем dotted-имена (a.b.c), дефисы и :
 _ID = r"[A-Za-z_][\w.\-:]*"
-
-# Объявления компонента (PlantUML):
-#   [Name]
-#   component "Name" | component Name
-#   rectangle / node / database / cloud (...)
-#   class fully.qualified.Name <<(M, #color)>>     ← arch-blueprint
 _DECL_RE = re.compile(
     rf"\[({_ID})\]"
     rf'|(?:component|rectangle|node|database|cloud|interface|class)\s+"?({_ID})"?'
 )
 
-# Стрелки зависимостей. arch-blueprint использует ---> и <-[#...,...]->,
-# классический PlantUML — -->, ..>, ->. Группа `arrow` ловит саму стрелку,
-# чтобы можно было отличить двунаправленные (циклические) от обычных.
 _DEP_RE = re.compile(
     rf"\[?(?P<src>{_ID})\]?"
     rf"\s*"
@@ -94,12 +89,9 @@ _DEP_RE = re.compile(
     rf"\[?(?P<dst>{_ID})\]?"
 )
 
-# Блок «note on link / end note» — содержит произвольную прозу с подстроками,
-# похожими на стрелки; пропускаем как комментарий.
 _NOTE_START_RE = re.compile(r"^\s*note\b", re.IGNORECASE)
 _NOTE_END_RE = re.compile(r"^\s*end\s*note\b", re.IGNORECASE)
 
-# Игнорируемые служебные ключевые слова PlantUML на старте строки.
 _SKIP_PREFIXES = (
     "@startuml",
     "@enduml",
@@ -121,10 +113,30 @@ _SKIP_PREFIXES = (
 
 
 def _derive_package(name: str) -> str:
-    """Для arch-blueprint dotted-имени пакет = всё кроме последнего сегмента."""
     if "." not in name:
         return ""
     return name.rsplit(".", 1)[0]
+
+
+def _path_components(pkg: str) -> list[str]:
+    if not pkg:
+        return []
+    return [p for p in pkg.split(".") if p]
+
+
+def _package_similarity(pkg_a: str, pkg_b: str) -> float:
+    a = _path_components(pkg_a)
+    b = _path_components(pkg_b)
+    if not a and not b:
+        return 1.0
+    if not a or not b:
+        return 0.0
+    common = 0
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        common += 1
+    return common / max(len(a), len(b))
 
 
 def _is_bidirectional(arrow: str) -> bool:
@@ -132,23 +144,19 @@ def _is_bidirectional(arrow: str) -> bool:
 
 
 def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
-    """Находит все компоненты/модули в PlantUML и их зависимости."""
     components: dict[str, ComponentData] = {}
     pkg_stack: list[str] = []
     in_note = False
 
     for raw in lines:
         line = raw.strip()
-        if not line or line.startswith("'"):  # пустые/комментарии
+        if not line or line.startswith("'"):
             continue
-
-        # Многострочные блоки note — пропускаем целиком
         if in_note:
             if _NOTE_END_RE.match(line):
                 in_note = False
             continue
         if _NOTE_START_RE.match(line):
-            # Inline-вариант `note ... end note` в одной строке тоже корректно ловится
             if not _NOTE_END_RE.search(line):
                 in_note = True
             continue
@@ -156,8 +164,6 @@ def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
         lower = line.lower()
         if any(lower.startswith(p) for p in _SKIP_PREFIXES):
             continue
-
-        # Вход в package/namespace/folder { ... }
         pkg_match = re.match(
             rf'(?:package|namespace|folder)\s+["\']?({_ID}|[\w./\- ]+)["\']?\s*\{{',
             line,
@@ -170,8 +176,6 @@ def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
             continue
 
         current_pkg = pkg_stack[-1] if pkg_stack else ""
-
-        # Объявление компонента
         for m in _DECL_RE.finditer(line):
             name = (m.group(1) or m.group(2) or "").strip()
             if not name or name.lower() in ("note", "on"):
@@ -183,12 +187,10 @@ def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
             elif not existing.package and pkg:
                 existing.package = pkg
 
-        # Зависимости (может быть несколько в одной строке).
         for dm in _DEP_RE.finditer(line):
             src = dm.group("src").strip()
             dst = dm.group("dst").strip()
             arrow = dm.group("arrow") or "-->"
-            # Защита от ложных срабатываний на ключевых словах.
             if src.lower() in ("class", "package", "note") or dst.lower() in (
                 "class",
                 "package",
@@ -209,7 +211,6 @@ def _extract_components(lines: list[str]) -> dict[str, ComponentData]:
             components[dst].afferent.add(src)
 
             if _is_bidirectional(arrow):
-                # Двунаправленная стрелка = цикл: добавляем обратную дугу тоже.
                 components[dst].efferent.add(src)
                 components[src].afferent.add(dst)
 
@@ -229,18 +230,16 @@ def _compute_metrics(components: dict[str, ComponentData]) -> list[Metrics]:
         coupling_score = total / denominator
 
         neighbors = comp.afferent | comp.efferent
-        if neighbors and comp.package:
-            same_pkg = sum(
-                1
-                for nb in neighbors
-                if components.get(nb, ComponentData(name=nb)).package == comp.package
-            )
-            cohesion_score = same_pkg / len(neighbors)
-        elif not comp.package:
-            # Без пакета (плоский corner case) — нейтральная оценка.
-            cohesion_score = 0.5
+        cohesion_score: float | None
+        if neighbors:
+            sim_sum = 0.0
+            for nb in neighbors:
+                nb_comp = components.get(nb)
+                nb_pkg = nb_comp.package if nb_comp is not None else _derive_package(nb)
+                sim_sum += _package_similarity(comp.package, nb_pkg)
+            cohesion_score = round(sim_sum / len(neighbors), 4)
         else:
-            cohesion_score = 1.0
+            cohesion_score = None
 
         result.append(
             Metrics(
@@ -249,7 +248,7 @@ def _compute_metrics(components: dict[str, ComponentData]) -> list[Metrics]:
                 ce=ce,
                 instability=round(instability, 4),
                 coupling_score=round(min(coupling_score, 1.0), 4),
-                cohesion_score=round(cohesion_score, 4),
+                cohesion_score=cohesion_score,
             )
         )
 
@@ -305,7 +304,11 @@ def _generate_recommendations(
             )
 
     for m in metrics:
-        if m.cohesion_score < _COHESION_LOW and (m.ca + m.ce) > 1:
+        if (
+            m.cohesion_score is not None
+            and m.cohesion_score < _COHESION_LOW
+            and (m.ca + m.ce) > 1
+        ):
             recs.append(
                 Recommendation(
                     severity="warning",
@@ -386,8 +389,15 @@ def analyze_plantuml(
 
     n = len(components)
     avg_coupling = sum(m.coupling_score for m in metrics) / n if n else 0
-    avg_cohesion = sum(m.cohesion_score for m in metrics) / n if n else 0
     avg_instability = sum(m.instability for m in metrics) / n if n else 0
+    cohesion_values = [
+        m.cohesion_score for m in metrics if m.cohesion_score is not None
+    ]
+    avg_cohesion = (
+        round(sum(cohesion_values) / len(cohesion_values), 4)
+        if cohesion_values
+        else None
+    )
 
     critical_count = sum(1 for r in recommendations if r.severity == "critical")
     warning_count = sum(1 for r in recommendations if r.severity == "warning")
@@ -397,7 +407,7 @@ def analyze_plantuml(
     summary = {
         "components_count": n,
         "avg_coupling": round(avg_coupling, 4),
-        "avg_cohesion": round(avg_cohesion, 4),
+        "avg_cohesion": avg_cohesion,
         "avg_instability": round(avg_instability, 4),
         "critical_issues": critical_count,
         "warning_issues": warning_count,

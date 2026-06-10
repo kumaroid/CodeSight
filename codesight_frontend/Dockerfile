@@ -1,17 +1,26 @@
 FROM docker.io/library/node:20-alpine AS builder
 WORKDIR /app
 
-# Reliability tweaks for npm in rootless container builds.
 ENV npm_config_audit=false \
     npm_config_fund=false \
     npm_config_progress=true \
     npm_config_maxsockets=3 \
     npm_config_fetch_retries=5 \
     npm_config_fetch_retry_mintimeout=20000 \
-    npm_config_fetch_retry_maxtimeout=120000
+    npm_config_fetch_retry_maxtimeout=120000 \
+    npm_config_proxy= \
+    npm_config_https_proxy= \
+    HTTP_PROXY= \
+    HTTPS_PROXY= \
+    http_proxy= \
+    https_proxy= \
+    ALL_PROXY= \
+    all_proxy= \
+    NO_PROXY=*
 
 COPY package.json ./
-RUN npm install
+RUN env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u all_proxy \
+    npm install
 
 COPY index.html ./
 COPY src ./src
@@ -35,7 +44,8 @@ ENV REACT_APP_AUTH_URL=$REACT_APP_AUTH_URL \
     REACT_APP_ORCHESTRATOR_URL=$REACT_APP_ORCHESTRATOR_URL \
     REACT_APP_DAST_URL=$REACT_APP_DAST_URL
 
-RUN npm run build
+RUN env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u all_proxy \
+    npm run build
 
 FROM docker.io/library/nginx:1.27-alpine
 COPY --from=builder /app/build /usr/share/nginx/html

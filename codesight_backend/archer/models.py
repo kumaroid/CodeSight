@@ -44,7 +44,8 @@ class ComponentMetricIn(BaseModel):
     ce: int
     instability: float
     coupling_score: float
-    cohesion_score: float
+    # None — изолированный модуль (нет соседей в графе), cohesion не определена.
+    cohesion_score: Optional[float] = None
 
 
 class RuleRecommendationIn(BaseModel):

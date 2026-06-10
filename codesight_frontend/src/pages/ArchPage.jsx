@@ -9,11 +9,15 @@ const SEVERITY_PILL = {
   info: 'pill-primary',
 };
 
-const couplingLabel = (score) => {
-  if (score >= 0.7) return { label: 'Risk', cls: 'pill-error' };
-  if (score >= 0.4) return { label: 'Review', cls: 'pill-warning' };
+const couplingLabel = (m) => {
+  const c = m.coupling_score ?? 0;
+  const i = typeof m.instability === 'number' ? m.instability : 0;
+  if (c >= 0.7 || i > 0.7) return { label: 'Risk', cls: 'pill-error' };
+  if (c >= 0.4 || i > 0.5) return { label: 'Review', cls: 'pill-warning' };
   return { label: 'Stable', cls: 'pill-success' };
 };
+
+const fmtCohesion = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
 
 export default function ArchPage() {
   const { id } = useParams();
@@ -65,13 +69,17 @@ export default function ArchPage() {
           <div className="eyebrow">Архитектурный анализ</div>
           <h1>{project?.name || `Проект ${id}`}</h1>
           <p className="description">
-            Метрики связности (Coupling) и когезии (Cohesion) по PlantUML-диаграмме.
+            Оценка архитектуры на основе PlantUML-диаграммы связности модулей.
           </p>
         </div>
         <div className="hero-side">
           <div className="meta-box">
             <strong>Средний coupling</strong>
             <span>{typeof summary?.avg_coupling === 'number' ? summary.avg_coupling.toFixed(2) : '—'}</span>
+          </div>
+          <div className="meta-box">
+            <strong>Средняя cohesion</strong>
+            <span>{typeof summary?.avg_cohesion === 'number' ? summary.avg_cohesion.toFixed(2) : '—'}</span>
           </div>
           <div className="meta-box">
             <strong>Health score</strong>
@@ -106,7 +114,7 @@ export default function ArchPage() {
               </thead>
               <tbody>
                 {metrics.map((m) => {
-                  const status = couplingLabel(m.coupling_score);
+                  const status = couplingLabel(m);
                   return (
                     <tr key={m.id}>
                       <td><strong>{m.component}</strong></td>
@@ -114,7 +122,7 @@ export default function ArchPage() {
                       <td>{m.ce}</td>
                       <td>{m.instability.toFixed(2)}</td>
                       <td>{m.coupling_score.toFixed(2)}</td>
-                      <td>{m.cohesion_score.toFixed(2)}</td>
+                      <td>{fmtCohesion(m.cohesion_score)}</td>
                       <td><span className={`pill ${status.cls}`}>{status.label}</span></td>
                     </tr>
                   );
@@ -134,11 +142,11 @@ export default function ArchPage() {
           ) : (
             <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
               {hotspots.map((m) => {
-                const status = couplingLabel(m.coupling_score);
+                const status = couplingLabel(m);
                 return (
                   <div className="vuln-row" key={m.id}>
                     <strong>{m.component}</strong>
-                    <small>Coupling {m.coupling_score.toFixed(2)} · Cohesion {m.cohesion_score.toFixed(2)}</small>
+                    <small>Coupling {m.coupling_score.toFixed(2)} · Cohesion {fmtCohesion(m.cohesion_score)}</small>
                     <span className={`pill ${status.cls}`}>{status.label}</span>
                   </div>
                 );

@@ -31,6 +31,28 @@ const safe = async (fn, ...args) => {
   }
 };
 
+/**
+ * Подгружает результаты всех известных шагов саги (по steps_run_ids)
+ * и возвращает их как { analysis, security, arch, testing, dast } map.
+ * Используется как разово (DetailPage для исторического сравнения),
+ * так и внутри useProjectAnalysis.
+ */
+export async function fetchSagaResults(saga) {
+  if (!saga || !saga.steps_run_ids) return {};
+  const promises = Object.entries(saga.steps_run_ids).map(async ([step, runId]) => {
+    const fetcher = STEP_TO_FETCHER[step];
+    if (!fetcher || !runId) return [step, null];
+    const data = await safe(fetcher, runId);
+    return [step, data];
+  });
+  const settled = await Promise.all(promises);
+  const map = {};
+  settled.forEach(([step, data]) => {
+    if (data) map[step] = data;
+  });
+  return map;
+}
+
 export function useProjectAnalysis(projectId, options = {}) {
   const { sagaId: sagaIdProp, pollInterval = 4000 } = options;
   const [project, setProject] = useState(null);
@@ -60,17 +82,7 @@ export function useProjectAnalysis(projectId, options = {}) {
     setSaga(currentSaga);
 
     if (currentSaga && currentSaga.steps_run_ids) {
-      const promises = Object.entries(currentSaga.steps_run_ids).map(async ([step, runId]) => {
-        const fetcher = STEP_TO_FETCHER[step];
-        if (!fetcher || !runId) return [step, null];
-        const data = await safe(fetcher, runId);
-        return [step, data];
-      });
-      const settled = await Promise.all(promises);
-      const map = {};
-      settled.forEach(([step, data]) => {
-        if (data) map[step] = data;
-      });
+      const map = await fetchSagaResults(currentSaga);
       setResults(map);
     } else {
       setResults({});

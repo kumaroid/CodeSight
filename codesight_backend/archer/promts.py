@@ -82,10 +82,15 @@ def build_metrics_prompt(payload: dict) -> str:
     top_hotspots = sorted(
         metrics, key=lambda m: m.get("coupling_score", 0), reverse=True
     )[:10]
+
+    def _fmt_cohesion(value) -> str:
+        # cohesion_score может прийти None для изолированных модулей.
+        return f"{value:.2f}" if isinstance(value, (int, float)) else "n/a"
+
     metrics_lines = [
         f"  - {m['component']}: Ca={m['ca']}, Ce={m['ce']}, "
         f"I={m['instability']:.2f}, coupling={m['coupling_score']:.2f}, "
-        f"cohesion={m['cohesion_score']:.2f}"
+        f"cohesion={_fmt_cohesion(m.get('cohesion_score'))}"
         for m in top_hotspots
     ]
 
@@ -95,13 +100,20 @@ def build_metrics_prompt(payload: dict) -> str:
         for r in rule_recs
     ]
 
+    avg_cohesion = summary.get("avg_cohesion")
+    avg_cohesion_str = (
+        f"{avg_cohesion:.2f}"
+        if isinstance(avg_cohesion, (int, float))
+        else "n/a (нет модулей с наблюдаемыми соседями)"
+    )
+
     return f"""
 Проект: {payload.get("project_id", "(unknown)")}
 
 Общие показатели:
   - components: {summary.get("components_count", "?")}
   - avg_coupling: {summary.get("avg_coupling", "?")}
-  - avg_cohesion: {summary.get("avg_cohesion", "?")}
+  - avg_cohesion: {avg_cohesion_str}
   - avg_instability: {summary.get("avg_instability", "?")}
   - critical_issues (rule-based): {summary.get("critical_issues", 0)}
   - warning_issues (rule-based): {summary.get("warning_issues", 0)}

@@ -233,7 +233,12 @@ def _fallback_metrics_recommendations(
     """
     summary = data.summary or {}
     avg_coupling = float(summary.get("avg_coupling", 0))
-    avg_cohesion = float(summary.get("avg_cohesion", 1))
+    # avg_cohesion может быть None (когда у всех модулей нет наблюдаемых
+    # соседей или все они изолированы) — тогда правила про cohesion пропускаем.
+    raw_avg_cohesion = summary.get("avg_cohesion")
+    avg_cohesion: float | None = (
+        float(raw_avg_cohesion) if isinstance(raw_avg_cohesion, (int, float)) else None
+    )
     components_n = int(summary.get("components_count", 0))
 
     recs: list[AIRecommendation] = []
@@ -276,7 +281,7 @@ def _fallback_metrics_recommendations(
             )
         )
 
-    if components_n >= 4 and avg_cohesion < 0.5:
+    if components_n >= 4 and avg_cohesion is not None and avg_cohesion < 0.5:
         recs.append(
             AIRecommendation(
                 severity="warning",
@@ -320,9 +325,14 @@ def _fallback_metrics_recommendations(
             )
         )
 
+    cohesion_part = (
+        f"средняя cohesion={avg_cohesion:.2f}"
+        if avg_cohesion is not None
+        else "средняя cohesion=n/a"
+    )
     summary_text = (
         f"Архитектура: {components_n} модулей, средний coupling={avg_coupling:.2f}, "
-        f"средняя cohesion={avg_cohesion:.2f}. "
+        f"{cohesion_part}. "
         "GigaChat недоступен — использован эвристический режим: "
         f"подготовлено {len(recs)} дополнительных подсказок поверх rule-based findings."
     )

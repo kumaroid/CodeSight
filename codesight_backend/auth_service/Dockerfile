@@ -1,17 +1,16 @@
 FROM python:3.12-slim
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
 WORKDIR /app
 
-# Install uv for fast dependency management
-RUN pip install --no-cache-dir uv
-
-# Copy dependency files first for layer caching
 COPY pyproject.toml uv.lock* ./
+RUN env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u all_proxy \
+    uv sync --frozen --no-dev
 
-# Install only runtime dependencieuv s (skip dev tools)
-RUN uv sync --frozen --no-dev
-
-# Copy application source
 COPY codesight_backend/auth_service ./codesight_backend/auth_service
 
 EXPOSE 8001

@@ -12,6 +12,7 @@ import ArchPage from './pages/ArchPage';
 import DetailPage from './pages/DetailPage';
 import StaticAnalysisPage from './pages/StaticAnalysisPage';
 import DastPage from './pages/DastPage';
+import TestingPage from './pages/TestingPage';
 
 function ProtectedLayout() {
   return (
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/projects/:id/security" element={<SecurityPage />} />
         <Route path="/projects/:id/architecture" element={<ArchPage />} />
         <Route path="/projects/:id/static" element={<StaticAnalysisPage />} />
+        <Route path="/projects/:id/testing" element={<TestingPage />} />
         <Route path="/projects/:id/dast" element={<DastPage />} />
       </Route>
 

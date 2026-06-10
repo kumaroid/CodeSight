@@ -1,5 +1,3 @@
-"""Обработка команд Kafka (шаг arch)."""
-
 from __future__ import annotations
 
 import asyncio
@@ -11,9 +9,9 @@ from codesight_backend.kafka_common.client import (
     spawn_command_consumer,
     stop_shared_producer,
 )
+from codesight_backend.arch_service.config import settings
+from codesight_backend.arch_service.service import run_arch_analysis_from_workspace
 
-from .config import settings
-from .service import run_arch_analysis_from_workspace
 
 logger = logging.getLogger(__name__)
 
