@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import cProfile
+import io
 import logging
 import os
+import pstats
 from typing import Any
 
 from .config import settings
@@ -78,6 +81,16 @@ def _mode_to_summary(mode: str, aggregate: dict) -> str:
     return f"{head} · {ran} probes выполнено, {skipped} пропущено"
 
 
+def _log_profile_stats(profiler: cProfile.Profile, top_n: int = 20) -> None:
+    """Выводит топ-N функций по совокупному времени (cumulative) в лог."""
+    stream = io.StringIO()
+    ps = pstats.Stats(profiler, stream=stream)
+    ps.strip_dirs()
+    ps.sort_stats(pstats.SortKey.CUMULATIVE)
+    ps.print_stats(top_n)
+    logger.info("DAST cProfile report (top %d by cumtime):\n%s", top_n, stream.getvalue())
+
+
 async def _execute_dast_run(run_id: str, project_id: str) -> None:
     from .database import AsyncSessionLocal
 
@@ -109,7 +122,9 @@ async def _execute_dast_run(run_id: str, project_id: str) -> None:
         run.status = "running"
         await db.commit()
 
+        profiler = cProfile.Profile()
         try:
+            profiler.enable()
             report = await run_dynamic_probes(effective_path, settings.dast_timeout)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Ошибка DAST runner для project=%s", project_id)
@@ -117,6 +132,9 @@ async def _execute_dast_run(run_id: str, project_id: str) -> None:
             run.error_message = _strip_nul(str(exc))
             await db.commit()
             return
+        finally:
+            profiler.disable()
+            _log_profile_stats(profiler)
 
         aggregate = _strip_nul_json(report.aggregate)
         by_sev = aggregate.get("findings_by_severity", {})
